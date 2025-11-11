@@ -1,6 +1,6 @@
 # PROJECT DEDICATE TO MONITORING DEVICES
 
-importar o painel de id "1860" no grafana para ter um dashboard completo das métricas do node exporter
+
 
 
 # para tornar executável assim que o computador ligar, seguir o passo a passo
@@ -27,7 +27,6 @@ TimeoutStartSec=0
 [Install]
 WantedBy=multi-user.target
 ```
-## ATENÇÃO
 ### Substitua /caminho/completo/para/sua/pasta/do/projeto pelo caminho real da sua pasta
 ```
 cd /pasta/do/seu/projeto
@@ -47,49 +46,19 @@ sudo systemctl daemon-reload
 # Habilitar para iniciar no boot
 sudo systemctl enable monitoring-app.service
 
-# Iniciar agora (opcional)
+# Iniciar
 sudo systemctl start monitoring-app.service
 
 # Verificar status
 sudo systemctl status monitoring-app.service
 ```
-###
+## Ajustar permissões
 ```
+# permissão para o Grafana escrever nos volumes
+sudo chown -R 472:472 grafana_data
+sudo chown -R 472:472 grafana_provisioning
 
+# permissão para o Prometheus escrever
+sudo chown -R 65534:65534 prometheus_data
 ```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
-###
-```
-
-```
+### importar o painel de id "1860" no grafana para ter um dashboard completo das métricas do node exporter

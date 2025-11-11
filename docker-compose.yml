@@ -4,20 +4,24 @@ services:
   prometheus-instancia1:
     image: prom/prometheus:latest
     container_name: prometheus-instancia1
-    restart: unless-stopped
     ports:
       - "${PROMETHEUS_PORT}:9090"
     volumes:
       - ./prometheus:/etc/prometheus
+      - ./prometheus_data:/prometheus  # 👈 VOLUME PERSISTENTE
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'  # 👈 Retém dados por 30 dias
     networks:
       - monitoring-network
+    restart: unless-stopped
 
   node-exporter-instancia1:
     image: prom/node-exporter:latest
     container_name: node-exporter-instancia1
-    restart: unless-stopped
     volumes:
       - /:/host:ro
     command:
@@ -26,19 +30,22 @@ services:
       - "${NODE_EXPORTER_PORT}:9100"
     networks:
       - monitoring-network
+    restart: unless-stopped
 
   grafana-instancia1:
     image: grafana/grafana:latest
     container_name: grafana-instancia1
-    restart: unless-stopped
     ports:
       - "${GRAFANA_PORT}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana_provisioning:/etc/grafana/provisioning  # 👈 VOLUME PERSISTENTE
+      - ./grafana_data:/var/lib/grafana  # 👈 VOLUME PERSISTENTE
     networks:
       - monitoring-network
+    restart: unless-stopped
 
 networks:
   monitoring-network:
