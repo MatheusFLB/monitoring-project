@@ -72,7 +72,9 @@ echo "🐳 Docker Compose: $DOCKER_COMPOSE"
 echo "🔐 Ajustando permissões dos volumes..."
 
 sudo chown -R 472:472 grafana_data grafana_provisioning
+sudo chmod -R 700 grafana_data grafana_provisioning
 sudo chown -R 65534:65534 prometheus_data
+sudo chmod -R 700 prometheus_data
 
 # ===============================
 # 5. Subir stack
@@ -104,5 +106,3 @@ sudo systemctl restart "$SERVICE_NAME"
 # ===============================
 echo "-------------------------------------"
 echo "✅ Deploy concluído com sucesso!"
-echo "📊 Grafana: http://localhost:${GRAFANA_PORT}"
-echo "📈 Prometheus: http://localhost:${PROMETHEUS_PORT}"
