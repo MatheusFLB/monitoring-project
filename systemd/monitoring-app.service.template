@@ -1,0 +1,15 @@
+[Unit]
+Description=Monitoring Stack (Prometheus + Grafana)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{WORKING_DIR}}
+ExecStart={{DOCKER_COMPOSE}} up -d
+ExecStop={{DOCKER_COMPOSE}} down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
