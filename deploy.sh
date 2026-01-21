@@ -7,14 +7,14 @@ TEMPLATE_PATH="./systemd/monitoring-app.service.template"
 ENV_EXAMPLE=".env.example"
 ENV_FILE=".env"
 
-echo "🚀 Iniciando deploy do Monitoring Stack"
+echo "🚀 Starting Monitoring Stack deploy"
 echo "-------------------------------------"
 
 # ===============================
-# 1. Verificar dependências
+# 1. Check dependencies
 # ===============================
 command -v docker >/dev/null 2>&1 || {
-  echo "❌ Docker não está instalado"
+  echo "❌ Docker is not installed"
   exit 1
 }
 
@@ -23,30 +23,30 @@ if command -v docker-compose >/dev/null 2>&1; then
 elif docker compose version >/dev/null 2>&1; then
   DOCKER_COMPOSE="docker compose"
 else
-  echo "❌ Docker Compose não encontrado"
+  echo "❌ Docker Compose not found"
   exit 1
 fi
 
 # ===============================
-# 2. Configuração do .env
+# 2. .env configuration
 # ===============================
 if [[ -f "$ENV_FILE" ]]; then
-  echo "⚠️ Arquivo .env já existe."
-  read -p "Deseja reutilizá-lo? (s/n): " reuse_env
-  if [[ "$reuse_env" != "s" ]]; then
+  echo "⚠️ .env file already exists."
+  read -p "Do you want to reuse it? (y/n): " reuse_env
+  if [[ "$reuse_env" != "y" ]]; then
     rm -f "$ENV_FILE"
   fi
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "📝 Criando arquivo .env"
+  echo "📝 Creating .env file"
   echo "-------------------------------------"
 
-  read -s -p "Senha do admin do Grafana: " GF_SECURITY_ADMIN_PASSWORD
+  read -s -p "Grafana admin password: " GF_SECURITY_ADMIN_PASSWORD
   echo
-  read -p "Porta do Grafana (ex: 3000): " GRAFANA_PORT
-  read -p "Porta do Prometheus (ex: 9090): " PROMETHEUS_PORT
-  read -p "Porta do Node Exporter (ex: 9100): " NODE_EXPORTER_PORT
+  read -p "Grafana port (e.g., 3000): " GRAFANA_PORT
+  read -p "Prometheus port (e.g., 9090): " PROMETHEUS_PORT
+  read -p "Node Exporter port (e.g., 9100): " NODE_EXPORTER_PORT
 
   cat <<EOF > "$ENV_FILE"
 GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
@@ -55,21 +55,21 @@ PROMETHEUS_PORT=$PROMETHEUS_PORT
 NODE_EXPORTER_PORT=$NODE_EXPORTER_PORT
 EOF
 
-  echo "✅ Arquivo .env criado com sucesso"
+  echo "✅ .env file created successfully"
 fi
 
 # ===============================
-# 3. Diretório do projeto
+# 3. Project directory
 # ===============================
 WORKING_DIR="$(pwd)"
 
-echo "📁 Projeto: $WORKING_DIR"
+echo "📁 Project: $WORKING_DIR"
 echo "🐳 Docker Compose: $DOCKER_COMPOSE"
 
 # ===============================
-# 4. Ajustar permissões
+# 4. Adjust permissions
 # ===============================
-echo "🔐 Ajustando permissões dos volumes..."
+echo "🔐 Adjusting volume permissions..."
 
 sudo chown -R 472:472 grafana_data grafana_provisioning
 sudo chmod -R 700 grafana_data grafana_provisioning
@@ -77,15 +77,15 @@ sudo chown -R 65534:65534 prometheus_data
 sudo chmod -R 700 prometheus_data
 
 # ===============================
-# 5. Subir stack
+# 5. Launch stack
 # ===============================
-echo "📦 Subindo containers..."
+echo "📦 Starting containers..."
 $DOCKER_COMPOSE up -d
 
 # ===============================
-# 6. Criar serviço systemd
+# 6. Create systemd service
 # ===============================
-echo "⚙️ Criando serviço systemd..."
+echo "⚙️ Creating systemd service..."
 
 sudo sed \
   -e "s|{{WORKING_DIR}}|$WORKING_DIR|g" \
@@ -93,16 +93,16 @@ sudo sed \
   "$TEMPLATE_PATH" | sudo tee "$SERVICE_PATH" > /dev/null
 
 # ===============================
-# 7. Ativar serviço
+# 7. Enable service
 # ===============================
-echo "🔄 Ativando serviço no boot..."
+echo "🔄 Enabling service on boot..."
 
 sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
 
 # ===============================
-# 8. Finalização
+# 8. Completion
 # ===============================
 echo "-------------------------------------"
-echo "✅ Deploy concluído com sucesso!"
+echo "✅ Deploy completed successfully!"
