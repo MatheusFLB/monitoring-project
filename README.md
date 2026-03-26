@@ -5,6 +5,11 @@ A complete server and infrastructure monitoring solution, using Node Exporter to
 ---
 ---
 
+![](assets/panel.png)
+
+---
+---
+
 ## ✨ Key Features
 
 * Full system metrics visualization via Grafana
