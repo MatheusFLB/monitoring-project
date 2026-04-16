@@ -1,17 +1,17 @@
 # 📡 Monitoring Stack — Grafana + Prometheus + Zabbix + Loki
 
-A comprehensive monitoring and security solution for local networks and remote hosts, built on Docker Compose with automated deployment and systemd boot integration.
+Stack completa de monitoramento e segurança para redes locais e hosts remotos, construída com Docker Compose, deploy automatizado e integração com systemd.
 
-| Component | Role |
+| Componente | Função |
 |-----------|------|
-| **Node Exporter** | System metrics (CPU, memory, disk, network) |
-| **Prometheus** | Time-series metrics collection & storage |
-| **Grafana** | Unified visualization (metrics, logs, Zabbix data) |
-| **Zabbix Server** | Network & remote host monitoring (with/without agent) |
-| **Zabbix Web** | Zabbix administration interface |
-| **Zabbix Agent 2** | Local host active monitoring + Docker metrics |
-| **Loki** | Log aggregation & indexing |
-| **Promtail** | Log collection (syslog, auth, kernel, Docker containers) |
+| **Node Exporter** | Métricas do sistema (CPU, memória, disco, rede) |
+| **Prometheus** | Coleta e armazenamento de métricas (time-series) |
+| **Grafana** | Visualização unificada (métricas, logs, dados Zabbix) |
+| **Zabbix Server** | Monitoramento de rede e hosts remotos (com/sem agente) |
+| **Zabbix Web** | Interface de administração do Zabbix |
+| **Zabbix Agent 2** | Monitoramento local do host + métricas Docker |
+| **Loki** | Agregação e indexação de logs |
+| **Promtail** | Coleta de logs (syslog, auth, kernel, containers Docker) |
 
 ---
 
@@ -19,21 +19,21 @@ A comprehensive monitoring and security solution for local networks and remote h
 
 ---
 
-## ✨ Key Features
+## ✨ Funcionalidades
 
-* Full system metrics visualization via Grafana
-* CPU, memory, disk, and network monitoring with Node Exporter
-* Local network and remote host monitoring with Zabbix (agent & agentless)
-* Centralized log aggregation with Loki + Promtail
-* Security event detection (failed logins, privilege escalation, sudo commands)
-* Docker container log collection and analysis
-* Automatic provisioning of dashboards and multiple data sources
-* Automated deployment with systemd to start on boot
-* Persistent storage for all services
+* Visualização completa de métricas do sistema via Grafana
+* Monitoramento de CPU, memória, disco e rede com Node Exporter
+* Monitoramento de rede local e hosts remotos com Zabbix (com e sem agente)
+* Agregação centralizada de logs com Loki + Promtail
+* Detecção de eventos de segurança (logins falhados, escalação de privilégios, comandos sudo)
+* Coleta e análise de logs de containers Docker
+* Provisioning automático de dashboards, datasources e alertas
+* Deploy automatizado com serviço systemd para início no boot
+* Armazenamento persistente para todos os serviços
 
 ---
 
-## 🏗 Architecture
+## 🏗 Arquitetura
 
 ```
 ┌──────────────────── Docker Compose (single host) ────────────────────┐
@@ -59,106 +59,113 @@ A comprehensive monitoring and security solution for local networks and remote h
 │                                                                       │
 └───────────────────────────────────────────────────────────────────────┘
 
-Remote hosts (LAN):
-  • With agent:    Zabbix Agent → Zabbix Server (active/passive checks)
-  • Without agent: Zabbix Server → host (ICMP ping, TCP port, SNMP)
+Hosts remotos (LAN):
+  • Com agente:    Zabbix Agent → Zabbix Server (checks ativos/passivos)
+  • Sem agente:    Zabbix Server → host (ICMP ping, TCP port, SNMP)
 ```
 
 ---
 
-## 📦 Requirements
+## 📦 Requisitos
 
-* Debian or Ubuntu (tested on Debian 12+)
-* **6 GB RAM minimum** (8 GB+ recommended)
-* sudo privileges
-* git, docker, docker-compose (v1 or v2)
-* openssl (for automatic password generation)
+* Debian ou Ubuntu (testado em Debian 12+)
+* **6 GB RAM mínimo** (8 GB+ recomendado)
+* Privilégios sudo
+* git, docker, docker-compose (v1 ou v2)
+* openssl (para geração automática de senhas)
 
 ---
 
-## 🚀 Installation
+## 🚀 Instalação
 
-Install required packages:
+Instale os pacotes necessários:
 
 ```bash
 sudo apt update && sudo apt install -y git docker.io docker-compose openssl
 ```
 
-Clone the repository:
+Clone o repositório:
 
 ```bash
 git clone https://github.com/MatheusFLB/monitoring-project.git
 cd monitoring-project
 ```
 
-Make the deploy script executable:
+Torne o script de deploy executável:
 
 ```bash
 chmod +x deploy.sh
 ```
 
-Run the deploy script (as root):
+Execute o deploy (como root):
 
 ```bash
 sudo ./deploy.sh
 ```
 
-The script will:
-* Check available system resources
-* Prompt for passwords, ports, and timezone
-* Auto-generate the Zabbix database password
-* Create persistent data directories with correct permissions
-* Start all containers
-* Create and enable a systemd service for boot startup
+O script irá:
+* Verificar recursos disponíveis no sistema
+* Solicitar senhas, portas e timezone interativamente
+* Gerar automaticamente a senha do banco Zabbix
+* Criar diretórios persistentes com permissões corretas
+* Iniciar todos os containers
+* Criar e habilitar serviço systemd para boot automático
 
 ---
 
-## 🌐 Access Points
+## 🌐 Pontos de Acesso
 
-| Service | Default URL | Default Credentials |
-|---------|-------------|-------------------|
-| **Grafana** | `http://localhost:3000` | admin / *(set during deploy)* |
+| Serviço | URL Padrão | Credenciais |
+|---------|-------------|-------------|
+| **Grafana** | `http://localhost:3000` | admin / *(definida no deploy)* |
 | **Prometheus** | `http://localhost:9090` | — |
 | **Zabbix Web** | `http://localhost:8080` | Admin / zabbix |
 | **Loki API** | `http://localhost:3100` | — |
 
-> ⚠️ Change the default Zabbix password immediately after first login.
+> ⚠️ Altere a senha padrão do Zabbix imediatamente após o primeiro login.
 
 ---
 
-## 🧠 How it Works
+## 🧠 Como Funciona
 
-### Metrics (Prometheus + Node Exporter)
-* **Node Exporter** exports CPU, memory, disk, and network metrics from the central host
-* **Prometheus** scrapes metrics every 15 seconds and stores them with 30-day retention
-* Visualized in Grafana via the pre-provisioned Prometheus data source
+### Métricas (Prometheus + Node Exporter)
+* **Node Exporter** exporta métricas de CPU, memória, disco e rede do host central
+* **Prometheus** coleta métricas a cada 15 segundos e armazena com retenção de 30 dias
+* Visualizado no Grafana via datasource Prometheus provisionado automaticamente
 
-### Network & Host Monitoring (Zabbix)
-* **Zabbix Server** manages monitoring of local and remote hosts
-* **Zabbix Agent 2** runs on the central host for detailed local metrics + Docker monitoring
-* Remote hosts can be monitored in two modes:
-  * **With agent** — Install Zabbix Agent on remote hosts pointing to the server IP
-  * **Without agent** — Configure ICMP ping, TCP port checks, or SNMP in Zabbix Web
-* Zabbix data is visualized in Grafana via the Zabbix plugin or in the native Zabbix Web interface
+### Monitoramento de Rede e Hosts (Zabbix)
+* **Zabbix Server** gerencia monitoramento de hosts locais e remotos
+* **Zabbix Agent 2** roda no host central para métricas detalhadas + monitoramento Docker
+* Hosts remotos podem ser monitorados de duas formas:
+  * **Com agente** — Instale o Zabbix Agent nos hosts remotos apontando para o IP do servidor
+  * **Sem agente** — Configure ICMP ping, checks TCP ou SNMP via Zabbix Web
+* Dados do Zabbix são visualizados no Grafana via plugin Zabbix ou na interface nativa
 
-### Logs & Security Events (Loki + Promtail)
-* **Promtail** collects logs from:
-  * `/var/log/syslog` — system events
-  * `/var/log/auth.log` — authentication events
-  * `/var/log/kern.log` — kernel messages
-  * Docker container logs via Docker socket
-* **Loki** indexes and stores logs with 30-day retention
-* Security-relevant events are labeled automatically:
-  * Failed/successful passwords, sudo commands, invalid users, session events
-* Logs are queryable in Grafana via the Loki data source using LogQL
+### Logs e Eventos de Segurança (Loki + Promtail)
+* **Promtail** coleta logs de:
+  * `/var/log/syslog` — eventos do sistema
+  * `/var/log/auth.log` — eventos de autenticação
+  * `/var/log/kern.log` — mensagens do kernel
+  * Logs de containers Docker via socket
+* **Loki** indexa e armazena logs com retenção de 30 dias
+* Eventos de segurança são classificados automaticamente:
+  * Logins falhados/bem-sucedidos, comandos sudo, usuários inválidos, sessões
+* Logs são classificados com labels operacionais (`job`, `host`, `level`, `action`) para filtragem no Grafana
+* Queries via LogQL no Grafana usando o datasource Loki
+
+### Central de Logs (Dashboard)
+* Dashboard Grafana provisionado para análise centralizada de logs
+* Filtros por host, origem do log e nível (`INFO`, `WARNING`, `ERROR`)
+* Gráficos de tendência de volume por severidade ao longo do tempo
+* Lista de alertas ativos e alerta gerenciado para picos de `ERROR`
 
 ---
 
-## 📡 Adding Remote Hosts
+## 📡 Adicionando Hosts Remotos
 
-### With Zabbix Agent (recommended for managed hosts)
+### Com Zabbix Agent (recomendado para hosts gerenciados)
 
-Install Zabbix Agent on the remote host:
+Instale o Zabbix Agent no host remoto:
 
 ```bash
 # Debian/Ubuntu
@@ -167,123 +174,131 @@ sudo dpkg -i zabbix-release_latest_7.0+ubuntu24.04_all.deb
 sudo apt update && sudo apt install -y zabbix-agent2
 ```
 
-Configure the agent (`/etc/zabbix/zabbix_agent2.conf`):
+Configure o agente (`/etc/zabbix/zabbix_agent2.conf`):
 
 ```ini
-Server=<MONITORING_HOST_IP>
-ServerActive=<MONITORING_HOST_IP>
-Hostname=<UNIQUE_HOST_NAME>
+Server=<IP_DO_HOST_MONITORAMENTO>
+ServerActive=<IP_DO_HOST_MONITORAMENTO>
+Hostname=<NOME_UNICO_DO_HOST>
 ```
 
-Restart the agent:
+Reinicie o agente:
 
 ```bash
 sudo systemctl restart zabbix-agent2
 sudo systemctl enable zabbix-agent2
 ```
 
-Then add the host in **Zabbix Web → Data collection → Hosts → Create host**.
+Adicione o host em **Zabbix Web → Data collection → Hosts → Create host**.
 
-### Without Agent (ICMP/TCP/SNMP)
+### Sem Agente (ICMP/TCP/SNMP)
 
-In **Zabbix Web → Data collection → Hosts → Create host**:
-1. Set the host IP address
-2. Link the template **ICMP Ping** (or **Generic SNMP** for SNMP devices)
-3. Zabbix Server will run the checks directly — no agent needed on the remote host
-
----
-
-## 🔐 Security Notes
-
-* **Credentials:**
-  * `.env` contains all passwords — protected with mode `600` and excluded from git
-  * Zabbix DB password is auto-generated with `openssl rand`
-  * Change the default Zabbix Web password (`Admin / zabbix`) after first login
-
-* **Persistent volumes contain sensitive data:**
-  * `grafana_data/` — users, password hashes, sessions
-  * `zabbix_db_data/` — full Zabbix database including host inventory
-  * `loki_data/` — aggregated logs (may contain sensitive system events)
-
-* **Exposed ports:**
-  * All services bind to `0.0.0.0` by default — restrict with a firewall if public-facing
-  * Zabbix Server port `10051` must be reachable by remote agents
-
-* **Best practices:**
-  * Use a firewall (`ufw`, `iptables`) to restrict access to trusted IPs
-  * Back up persistent volumes regularly with encrypted archives
-  * Consider a reverse proxy (Nginx) with TLS for production environments
-  * Do not expose the Docker socket to untrusted containers
+Em **Zabbix Web → Data collection → Hosts → Create host**:
+1. Defina o endereço IP do host
+2. Vincule o template **ICMP Ping** (ou **Generic SNMP** para dispositivos SNMP)
+3. O Zabbix Server executará os checks diretamente — sem agente necessário
 
 ---
 
-## 📁 Project Structure
+## 🔐 Notas de Segurança
+
+* **Credenciais:**
+  * `.env` contém todas as senhas — protegido com modo `600` e excluído do Git
+  * Senha do banco Zabbix é gerada automaticamente com `openssl rand`
+  * Altere a senha padrão do Zabbix Web (`Admin / zabbix`) após o primeiro login
+
+* **Volumes persistentes contêm dados sensíveis:**
+  * `data/grafana/` — usuários, hashes de senha, sessões
+  * `data/zabbix-db/` — banco completo incluindo inventário de hosts
+  * `data/loki/` — logs agregados (podem conter eventos sensíveis do sistema)
+
+* **Portas expostas:**
+  * Todos os serviços fazem bind em `0.0.0.0` por padrão — restrinja com firewall se exposto à internet
+  * Porta 10051 do Zabbix Server deve ser acessível pelos agentes remotos
+
+* **Boas práticas:**
+  * Use firewall (`ufw`, `iptables`) para restringir acesso a IPs confiáveis
+  * Faça backup regular dos volumes com arquivos criptografados
+  * Considere um reverse proxy (Nginx) com TLS para ambientes de produção
+  * Não exponha o Docker socket a containers não confiáveis
+
+---
+
+## 📁 Estrutura do Projeto
 
 ```
 monitoring-project/
-├── docker-compose.yml          # All services orchestration
-├── deploy.sh                   # Automated deployment script
-├── .env.example                # Environment variable template
-├── .gitignore                  # Excludes .env and data directories
-├── README.md                   # This file
+├── docker-compose.yml                # Orquestração de todos os serviços
+├── deploy.sh                         # Script de deploy automatizado
+├── .env.example                      # Template de variáveis de ambiente
+├── .gitignore                        # Exclusões do Git
+├── .gitattributes                    # Configuração de linguagem para GitHub
+├── README.md                         # Esta documentação
 │
-├── prometheus/
-│   └── prometheus.yml          # Scrape configuration
-├── prometheus_data/            # Prometheus TSDB (persistent)
+├── config/                           # ── Configurações dos serviços ──
+│   ├── prometheus/
+│   │   └── prometheus.yml            # Targets de coleta de métricas
+│   ├── loki/
+│   │   └── loki.yml                  # Servidor de agregação de logs
+│   ├── promtail/
+│   │   └── promtail.yml              # Regras de coleta e classificação de logs
+│   └── grafana/
+│       └── provisioning/
+│           ├── datasources/
+│           │   └── datasources.yml   # Fontes de dados (Prometheus, Loki, Zabbix)
+│           ├── dashboards/
+│           │   ├── dashboards.yml    # Configuração do provider de dashboards
+│           │   ├── node-exporter-full.json   # Dashboard: métricas do host
+│           │   ├── monitoring-overview.json  # Dashboard: painel principal
+│           │   └── logs-central.json         # Dashboard: central de logs
+│           ├── alerting/
+│           │   └── error_logs.yml    # Regras de alerta (pico de ERROR)
+│           └── plugins/
+│               └── plugins.yml       # Habilitação de plugins (Zabbix app)
 │
-├── grafana_provisioning/
-│   ├── datasources/
-│   │   └── datasource.yml      # Prometheus + Loki + Zabbix sources
-│   └── dashboards/
-│       ├── dashboard.yml        # Dashboard provider config
-│       └── 1860_rev27.json      # Node Exporter Full dashboard
-├── grafana_data/               # Grafana state (persistent)
-│
-├── loki/
-│   └── loki.yml                # Loki server configuration
-├── loki_data/                  # Loki chunks & index (persistent)
-│
-├── promtail/
-│   └── promtail.yml            # Log collection configuration
-│
-├── zabbix_db_data/             # PostgreSQL data (persistent)
-├── zabbix_server_data/         # Zabbix Server state (persistent)
+├── data/                             # ── Dados persistentes (gitignored) ──
+│   ├── grafana/                      # Estado do Grafana (users, sessions)
+│   ├── prometheus/                   # TSDB do Prometheus (métricas)
+│   ├── loki/                         # Chunks e índices do Loki (logs)
+│   ├── zabbix-db/                    # Banco PostgreSQL do Zabbix
+│   └── zabbix-server/               # Estado do Zabbix Server
 │
 ├── systemd/
-│   └── monitoring-app.service.template  # Systemd unit template
+│   └── monitoring-app.service.template  # Template do serviço systemd
+│
 └── assets/
-    └── panel.png               # Screenshot
+    └── panel.png                     # Screenshot do dashboard
 ```
 
 ---
 
-## 🛠 Typical Use Cases
+## 🛠 Casos de Uso Típicos
 
-* Monitoring physical or virtual servers in a local network
-* Network availability monitoring (ICMP, TCP, SNMP) via Zabbix
-* Real-time infrastructure metrics visualization
-* Centralized security log analysis (failed logins, intrusions, sudo activity)
-* Docker container health and log monitoring
-* Alerts and dashboards for DevOps or SysAdmin teams
-* Base for expansion with additional exporters and Zabbix templates
+* Monitoramento de servidores físicos ou virtuais em rede local
+* Monitoramento de disponibilidade de rede (ICMP, TCP, SNMP) via Zabbix
+* Visualização em tempo real de métricas de infraestrutura
+* Análise centralizada de logs de segurança (logins falhados, intrusões, sudo)
+* Monitoramento de saúde e logs de containers Docker
+* Alertas e dashboards para equipes DevOps ou SysAdmin
+* Base para expansão com exporters adicionais e templates Zabbix
 
 ---
 
-## ⚠️ Resource Considerations
+## ⚠️ Considerações de Recursos
 
-This stack runs 8 containers. On constrained hardware (dual-core, 6 GB RAM):
-* Expect ~3–4 GB RAM usage at idle
-* Zabbix DB cache is set conservatively (`ZBX_CACHESIZE=32M`)
-* Prometheus retention is 30 days — monitor disk usage
-* Loki retention is 30 days with automatic compaction
-* If resources are insufficient, stop the least critical service temporarily:
+A stack roda 9 containers. Em hardware limitado (dual-core, 6 GB RAM):
+* Consumo típico: ~3–4 GB RAM em idle
+* Cache do Zabbix DB configurado conservadoramente (`ZBX_CACHESIZE=32M`)
+* Retenção do Prometheus: 30 dias — monitore o uso de disco
+* Retenção do Loki: 30 dias com compactação automática
+* Se recursos forem insuficientes, pare o serviço menos crítico temporariamente:
   ```bash
-  docker compose stop loki promtail   # Pause log collection
-  docker compose stop zabbix-web      # Pause Zabbix UI (server keeps collecting)
+  docker-compose stop loki promtail   # Pausar coleta de logs
+  docker-compose stop zabbix-web      # Pausar UI do Zabbix (server continua coletando)
   ```
 
 ---
 
-## 👤 Author
+## 👤 Autor
 
-Project created by **[Matheus Bissoli](https://www.linkedin.com/in/matheusbissoli/)** — a comprehensive monitoring and security stack for Linux infrastructure.
+Projeto criado por **[Matheus Bissoli](https://www.linkedin.com/in/matheusbissoli/)** — stack completa de monitoramento e segurança para infraestrutura Linux.

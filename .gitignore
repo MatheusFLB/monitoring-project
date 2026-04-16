@@ -1,4 +1,25 @@
-.env*
+# =============================================================================
+# .gitignore — Monitoring Stack
+# =============================================================================
+# Exclui do Git: dados persistentes, arquivos de ambiente com senhas,
+# e outros arquivos gerados em runtime.
+# =============================================================================
+
+# --- Dados persistentes dos serviços (gerados em runtime) ---
+data/
+
+# --- Diretórios legados (pré-reorganização) ---
+# Remover estas entradas após confirmar que a migração para data/ está completa.
+grafana_data/
+prometheus_data/
+loki_data/
 zabbix_db_data/
 zabbix_server_data/
-loki_data/
+
+# --- Arquivos de ambiente (contêm senhas) ---
+.env
+.env.old
+.env.backup
+
+# --- Preserva o template de exemplo (IMPORTANTE: esta linha deve vir APÓS .env) ---
+!.env.example

@@ -1,0 +1,78 @@
+# =============================================================================
+# Loki — Servidor de agregação de logs
+# =============================================================================
+# O Loki recebe logs do Promtail via HTTP push e os armazena localmente.
+# Usa o schema TSDB v13 com filesystem como backend de armazenamento.
+# Retenção configurada para 30 dias com compactação automática.
+#
+# Documentação: https://grafana.com/docs/loki/latest/configuration/
+# =============================================================================
+
+# Desabilita autenticação multi-tenant (single-tenant mode).
+# Em ambientes com múltiplos times, habilitar e configurar tenant IDs.
+auth_enabled: false
+
+server:
+  # Porta HTTP para API de push (Promtail), queries (Grafana) e health checks.
+  http_listen_port: 3100
+
+# ---------------------------------------------------------------------------
+# Configuração comum (storage, replicação, ring)
+# ---------------------------------------------------------------------------
+common:
+  # Diretório base para todos os dados do Loki dentro do container.
+  path_prefix: /loki
+
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks    # Dados dos logs compactados
+      rules_directory: /loki/rules      # Regras de alerting (se houver)
+
+  # Fator de replicação = 1 (single node, sem cluster).
+  # Para alta disponibilidade, usar 3+ com memberlist ou consul.
+  replication_factor: 1
+
+  ring:
+    kvstore:
+      # Armazenamento do hash ring em memória (adequado para single node).
+      # Em cluster, usar memberlist, consul ou etcd.
+      store: inmemory
+
+# ---------------------------------------------------------------------------
+# Schema de armazenamento
+# ---------------------------------------------------------------------------
+# Define como os índices e chunks são organizados no disco.
+# TSDB v13 é o schema mais recente e performático.
+# IMPORTANTE: Não altere schemas existentes. Para migrar, adicione um novo
+# bloco com data futura.
+schema_config:
+  configs:
+    - from: "2024-01-01"        # Data de início deste schema
+      store: tsdb               # Engine de índice (recomendado)
+      object_store: filesystem  # Backend de armazenamento
+      schema: v13               # Versão do schema
+      index:
+        prefix: index_          # Prefixo dos arquivos de índice
+        period: 24h             # Rotação diária dos índices
+
+# ---------------------------------------------------------------------------
+# Limites e retenção
+# ---------------------------------------------------------------------------
+limits_config:
+  # Tempo máximo que os logs são mantidos antes de serem excluídos.
+  retention_period: 30d
+
+  # Número máximo de séries retornadas por query.
+  # Aumentar se houver muitos jobs/labels distintos.
+  max_query_series: 500
+
+# ---------------------------------------------------------------------------
+# Compactador — manutenção automática do storage
+# ---------------------------------------------------------------------------
+# Compacta índices, aplica retenção e processa requisições de exclusão.
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m          # Executa compactação a cada 10 minutos
+  retention_enabled: true           # Habilita exclusão automática por retenção
+  delete_request_store: filesystem  # Backend para requisições de exclusão
+  retention_delete_delay: 2h        # Delay de segurança antes de excluir dados

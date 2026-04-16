@@ -1,0 +1,27 @@
+# =============================================================================
+# Grafana — Provisioning de dashboards
+# =============================================================================
+# Configura o Grafana para carregar dashboards automaticamente de arquivos JSON
+# localizados no diretório especificado.
+#
+# Dashboards provisionados:
+#   - node-exporter-full.json    → Métricas detalhadas do host (CPU, RAM, disco)
+#   - monitoring-overview.json   → Painel principal de operações
+#   - logs-central.json          → Central de logs com filtros por severidade
+#
+# Documentação: https://grafana.com/docs/grafana/latest/administration/provisioning/
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: ''                  # Pasta raiz no Grafana
+    type: file
+    disableDeletion: false      # Permite excluir dashboards via UI
+    editable: true              # Permite editar dashboards provisionados
+    options:
+      # Caminho dentro do container onde os JSONs ficam montados.
+      # Corresponde ao volume: ./config/grafana/provisioning → /etc/grafana/provisioning
+      path: /etc/grafana/provisioning/dashboards

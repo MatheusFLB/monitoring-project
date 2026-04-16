@@ -1,0 +1,604 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "-- Mixed --",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "# Central de Logs\nPainel dedicado para leitura operacional dos logs coletados pelo Loki.\n\n**Como usar**\n- ajuste `Host`, `Origem` e `Nível` no topo\n- use o gráfico para detectar tendência por severidade\n- acompanhe o volume recente de `ERROR` e `WARNING`\n- consulte os alertas ativos no painel lateral\n\n**Escopo atual**\n- host local `monitoring-host`\n- syslog, auth, kernel, docker e visão derivada de segurança\n- alerta inicial de pico de `ERROR` em 5 minutos\n",
+        "mode": "markdown"
+      },
+      "pluginVersion": "12.0.0",
+      "title": "Visão Geral",
+      "type": "text"
+    },
+    {
+      "datasource": "Loki",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=~\"$job\",level=\"ERROR\"}[15m]))",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "ERROR (15m)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Loki",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=~\"$job\",level=\"WARNING\"}[15m]))",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "WARNING (15m)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Loki",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=~\"$job\",level=\"INFO\"}[15m]))",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "INFO (15m)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "-- Mixed --",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "content": "## Configuração operacional\n- Host: `$host`\n- Origem: `$job`\n- Nível: `$level`\n- Limite de referência para ERROR: `$error_limit`\n\nO alerta provisionado inicia com limiar fixo de **10 erros em 5 minutos**.\n",
+        "mode": "markdown"
+      },
+      "pluginVersion": "12.0.0",
+      "title": "Configurações",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "id": 6,
+      "options": {
+        "alertsFromThisDashboard": true,
+        "alertInstanceLabelFilter": "",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "groupBy": [],
+        "groupMode": "default",
+        "maxItems": 10,
+        "showInactiveAlerts": false,
+        "sortOrder": 1,
+        "stateFilter": {
+          "alerting": true,
+          "error": true,
+          "firing": true,
+          "no_data": true,
+          "normal": false,
+          "ok": false,
+          "paused": true,
+          "pending": true
+        },
+        "viewMode": "list"
+      },
+      "pluginVersion": "12.0.0",
+      "title": "Alertas Ativos",
+      "type": "alertlist"
+    },
+    {
+      "datasource": "Loki",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 8
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=~\"$job\",level=\"INFO\"}[$__interval]))",
+          "legendFormat": "INFO",
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=~\"$job\",level=\"WARNING\"}[$__interval]))",
+          "legendFormat": "WARNING",
+          "queryType": "range",
+          "refId": "B"
+        },
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=~\"$job\",level=\"ERROR\"}[$__interval]))",
+          "legendFormat": "ERROR",
+          "queryType": "range",
+          "refId": "C"
+        }
+      ],
+      "title": "Volume de Logs por Nível",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Loki",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 75,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 8
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=\"system\"}[5m]))",
+          "legendFormat": "system",
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=\"auth\"}[5m]))",
+          "legendFormat": "auth",
+          "queryType": "range",
+          "refId": "B"
+        },
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=\"kernel\"}[5m]))",
+          "legendFormat": "kernel",
+          "queryType": "range",
+          "refId": "C"
+        },
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=\"docker\"}[5m]))",
+          "legendFormat": "docker",
+          "queryType": "range",
+          "refId": "D"
+        },
+        {
+          "datasource": "Loki",
+          "expr": "sum(count_over_time({host=~\"$host\",job=\"security\"}[5m]))",
+          "legendFormat": "security",
+          "queryType": "range",
+          "refId": "E"
+        }
+      ],
+      "title": "Volume por Origem (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Loki",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 9,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": "Loki",
+          "expr": "{host=~\"$host\",job=~\"$job\",level=~\"$level\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Logs Coletados",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "logs",
+    "loki",
+    "operations"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "monitoring-host",
+          "value": "monitoring-host"
+        },
+        "hide": 0,
+        "label": "Host",
+        "name": "host",
+        "options": [
+          {
+            "selected": true,
+            "text": "monitoring-host",
+            "value": "monitoring-host"
+          }
+        ],
+        "query": "monitoring-host",
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Origem",
+        "name": "job",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "system",
+            "value": "system"
+          },
+          {
+            "selected": false,
+            "text": "auth",
+            "value": "auth"
+          },
+          {
+            "selected": false,
+            "text": "kernel",
+            "value": "kernel"
+          },
+          {
+            "selected": false,
+            "text": "docker",
+            "value": "docker"
+          },
+          {
+            "selected": false,
+            "text": "security",
+            "value": "security"
+          }
+        ],
+        "query": "system,auth,kernel,docker,security",
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Nível",
+        "name": "level",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "INFO",
+            "value": "INFO"
+          },
+          {
+            "selected": false,
+            "text": "WARNING",
+            "value": "WARNING"
+          },
+          {
+            "selected": false,
+            "text": "ERROR",
+            "value": "ERROR"
+          }
+        ],
+        "query": "INFO,WARNING,ERROR",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "10",
+          "value": "10"
+        },
+        "hide": 0,
+        "label": "Limite ERROR",
+        "name": "error_limit",
+        "options": [
+          {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": true,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": false,
+            "text": "50",
+            "value": "50"
+          }
+        ],
+        "query": "5,10,20,50",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Central de Logs",
+  "uid": "logs-central",
+  "version": 1,
+  "weekStart": ""
+}

@@ -53,7 +53,7 @@
       },
       "id": 1,
       "options": {
-        "content": "# Monitoring Stack Overview\nPainel principal da stack, com foco em leitura rápida e operação diária.\n\n**O que olhar primeiro**\n- Saúde da stack\n- Consumo do host central\n- Scrapes do Prometheus\n- Eventos de segurança recentes\n\n**Use o Zabbix Web para**\n- cadastrar hosts\n- organizar grupos\n- fazer descoberta de rede\n",
+        "content": "# Monitoring Stack Overview\nPainel principal da stack, com foco em leitura rápida e operação diária.\n\n**O que olhar primeiro**\n- Saúde da stack\n- Consumo do host central\n- Scrapes do Prometheus\n- Eventos de segurança recentes\n- Dispositivos da rede cadastrados no Zabbix\n\n**Use o Zabbix Web para**\n- cadastrar hosts\n- organizar grupos\n- fazer descoberta de rede\n",
         "mode": "markdown"
       },
       "pluginVersion": "12.0.0",
@@ -785,7 +785,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 23
       },
@@ -817,24 +817,394 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "-- Mixed --",
-        "uid": "-- Mixed --"
+      "datasource": "Zabbix",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "Down"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "Up"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 4,
+        "x": 8,
+        "y": 23
+      },
+      "id": 16,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "functions": [],
+          "itemids": "50744",
+          "options": {
+            "disableDataAlignment": false,
+            "showDisabledItems": false,
+            "skipEmptyValues": false,
+            "useTrends": "default",
+            "useZabbixValueMapping": false
+          },
+          "queryType": "3",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "schema": 12
+        }
+      ],
+      "title": "Host 192.168.100.23",
+      "type": "stat"
+    },
+    {
+      "datasource": "Zabbix",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "Down"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "Up"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
         "x": 12,
         "y": 23
       },
       "id": 15,
       "options": {
-        "content": "## Próximos passos\n1. Cadastrar um host remoto no Zabbix\n2. Criar grupos de hosts no Zabbix\n3. Trocar a senha do usuário `Admin` no Zabbix\n4. Atualizar a senha do datasource Zabbix no Grafana\n5. Criar alertas básicos para CPU, disco e falhas de login\n",
-        "mode": "markdown"
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
       },
-      "pluginVersion": "12.0.0",
-      "title": "Guia Operacional",
-      "type": "text"
+      "targets": [
+        {
+          "functions": [],
+          "itemids": "50747",
+          "options": {
+            "disableDataAlignment": false,
+            "showDisabledItems": false,
+            "skipEmptyValues": false,
+            "useTrends": "default",
+            "useZabbixValueMapping": false
+          },
+          "queryType": "3",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "schema": 12
+        }
+      ],
+      "title": "Router 192.168.100.1",
+      "type": "stat"
+    },
+    {
+      "datasource": "Zabbix",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 23
+      },
+      "id": 18,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "functions": [],
+          "itemids": "50746",
+          "options": {
+            "disableDataAlignment": false,
+            "showDisabledItems": false,
+            "skipEmptyValues": false,
+            "useTrends": "default",
+            "useZabbixValueMapping": false
+          },
+          "queryType": "3",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "schema": 12
+        }
+      ],
+      "title": "Latência Host",
+      "type": "stat"
+    },
+    {
+      "datasource": "Zabbix",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 23
+      },
+      "id": 19,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "functions": [],
+          "itemids": "50749",
+          "options": {
+            "disableDataAlignment": false,
+            "showDisabledItems": false,
+            "skipEmptyValues": false,
+            "useTrends": "default",
+            "useZabbixValueMapping": false
+          },
+          "queryType": "3",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "schema": 12
+        }
+      ],
+      "title": "Latência Router",
+      "type": "stat"
+    },
+    {
+      "datasource": "Zabbix",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "functions": [],
+          "itemids": "50746",
+          "options": {
+            "disableDataAlignment": false,
+            "showDisabledItems": false,
+            "skipEmptyValues": false,
+            "useTrends": "default",
+            "useZabbixValueMapping": false
+          },
+          "queryType": "3",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "schema": 12
+        },
+        {
+          "functions": [],
+          "itemids": "50749",
+          "options": {
+            "disableDataAlignment": false,
+            "showDisabledItems": false,
+            "skipEmptyValues": false,
+            "useTrends": "default",
+            "useZabbixValueMapping": false
+          },
+          "queryType": "3",
+          "refId": "B",
+          "resultFormat": "time_series",
+          "schema": 12
+        }
+      ],
+      "title": "Histórico de Latência da Rede",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "-- Mixed --",
+        "uid": "-- Mixed --"
+      },
+        "gridPos": {
+          "h": 5,
+          "w": 24,
+          "x": 0,
+          "y": 35
+        },
+        "id": 17,
+        "options": {
+          "content": "## Rede Local e próximos passos\nOs cartões acima usam os itens reais do Zabbix para o host **192.168.100.23** e o roteador **192.168.100.1**.\n\n1. Validar no Zabbix se ambos permanecem como `Available`\n2. Adicionar SNMP no roteador, se suportado\n3. Trocar a senha do usuário `Admin` no Zabbix\n4. Atualizar a senha do datasource Zabbix no Grafana\n5. Criar alertas para host down e latência acima do normal\n",
+          "mode": "markdown"
+        },
+        "pluginVersion": "12.0.0",
+        "title": "Guia Operacional",
+        "type": "text"
     }
   ],
   "refresh": "30s",

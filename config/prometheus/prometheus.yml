@@ -1,0 +1,50 @@
+# =============================================================================
+# Prometheus — Configuração de scrape targets
+# =============================================================================
+# O Prometheus coleta métricas dos targets listados abaixo a cada 15 segundos.
+# Todas as métricas ficam disponíveis para consulta via PromQL no Grafana.
+#
+# Para adicionar novos hosts:
+#   1. Adicione um bloco static_configs com o IP:porta do exporter
+#   2. Use labels para identificar a instância no Grafana
+#   3. Reinicie o Prometheus: docker compose restart prometheus-instancia1
+# =============================================================================
+
+global:
+  # Intervalo padrão entre coletas de métricas.
+  # 15s é o recomendado para ambientes de produção (equilíbrio entre
+  # granularidade e consumo de recursos).
+  scrape_interval: 15s
+
+scrape_configs:
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter — métricas de hardware e SO do host central
+  # ---------------------------------------------------------------------------
+  # Expõe: CPU, memória, disco, rede, filesystem, load average, etc.
+  # Dashboard associado: "Node Exporter Full" no Grafana.
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter-instancia1:9100']
+        labels:
+          instance: 'instancia1'   # Identifica este host nos dashboards
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — auto-monitoramento (self-monitoring)
+  # ---------------------------------------------------------------------------
+  # O Prometheus coleta suas próprias métricas internas:
+  # scrape duration, samples ingested, storage size, etc.
+  # Útil para diagnosticar problemas de performance do próprio Prometheus.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ---------------------------------------------------------------------------
+  # Loki — health check e métricas operacionais
+  # ---------------------------------------------------------------------------
+  # Monitora o Loki via endpoint /metrics (padrão Prometheus).
+  # Métricas: chunks stored, queries processed, ingestion rate, etc.
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+    metrics_path: /metrics

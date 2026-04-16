@@ -1,16 +1,31 @@
+# =============================================================================
+# Systemd Service — Monitoring Stack
+# =============================================================================
+# Template de serviço systemd para iniciar a stack de monitoramento no boot.
+# Os placeholders {{WORKING_DIR}} e {{DOCKER_COMPOSE}} são substituídos
+# pelo deploy.sh durante a instalação.
+#
+# Gerenciamento:
+#   sudo systemctl start monitoring-app    # Iniciar stack
+#   sudo systemctl stop monitoring-app     # Parar stack
+#   sudo systemctl status monitoring-app   # Verificar status
+#   sudo systemctl restart monitoring-app  # Reiniciar stack
+#   journalctl -u monitoring-app           # Ver logs do serviço
+# =============================================================================
+
 [Unit]
 Description=Monitoring Stack (Prometheus + Grafana + Zabbix + Loki)
 Requires=docker.service
 After=docker.service
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
-WorkingDirectory={{WORKING_DIR}}
-ExecStart={{DOCKER_COMPOSE}} up -d
-ExecStop={{DOCKER_COMPOSE}} down
-TimeoutStartSec=300
-TimeoutStopSec=120
+Type=oneshot                          # Executa uma vez e mantém status "active"
+RemainAfterExit=yes                   # Marca como ativo após docker-compose up
+WorkingDirectory={{WORKING_DIR}}      # Substituído pelo deploy.sh
+ExecStart={{DOCKER_COMPOSE}} up -d    # Inicia todos os containers
+ExecStop={{DOCKER_COMPOSE}} down      # Para todos os containers
+TimeoutStartSec=300                   # 5 min para pull de imagens + startup
+TimeoutStopSec=120                    # 2 min para graceful shutdown
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target            # Inicia no boot (runlevel 3+)

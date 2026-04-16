@@ -1,2 +1,12 @@
+# =============================================================================
+# .gitattributes — Configuração de linguagem para GitHub
+# =============================================================================
+# Ajusta a detecção de linguagem do repositório no GitHub.
+# Sem estas regras, GitHub contabilizaria Shell e Docker como linguagens
+# principais, quando o projeto é primariamente configuração YAML/JSON.
+
+# Shell scripts não contam como linguagem principal
 *.sh linguist-detectable=false
-docker-compose.yml linguist-language=Dockerfile
+
+# docker-compose.yml é tratado como YAML (não Dockerfile)
+docker-compose.yml linguist-language=YAML
