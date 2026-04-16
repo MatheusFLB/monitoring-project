@@ -1,5 +1,5 @@
 [Unit]
-Description=Monitoring Stack (Prometheus + Grafana)
+Description=Monitoring Stack (Prometheus + Grafana + Zabbix + Loki)
 Requires=docker.service
 After=docker.service
 
@@ -9,7 +9,8 @@ RemainAfterExit=yes
 WorkingDirectory={{WORKING_DIR}}
 ExecStart={{DOCKER_COMPOSE}} up -d
 ExecStop={{DOCKER_COMPOSE}} down
-TimeoutStartSec=0
+TimeoutStartSec=300
+TimeoutStopSec=120
 
 [Install]
 WantedBy=multi-user.target

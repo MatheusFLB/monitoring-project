@@ -1,1 +1,4 @@
-.env
+.env*
+zabbix_db_data/
+zabbix_server_data/
+loki_data/
