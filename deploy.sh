@@ -100,6 +100,66 @@ EOF
   echo "✅ .env file created successfully"
 fi
 
+get_env_value() {
+  local key="$1"
+  local default_value="$2"
+  local value
+
+  value=$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d= -f2-)
+
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+  else
+    printf '%s' "$default_value"
+  fi
+}
+
+wait_for_postgres() {
+  local db_name="$1"
+  local db_user="$2"
+  local attempt=1
+  local max_attempts=30
+
+  echo "⏳ Waiting for PostgreSQL to become ready..."
+
+  until sudo docker exec zabbix-db pg_isready -U "$db_user" -d "$db_name" >/dev/null 2>&1; do
+    if [[ "$attempt" -ge "$max_attempts" ]]; then
+      echo "❌ PostgreSQL did not become ready in time"
+      exit 1
+    fi
+
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+}
+
+zabbix_schema_is_ready() {
+  local db_name="$1"
+  local db_user="$2"
+  local users_count
+
+  users_count=$(sudo docker exec zabbix-db psql -U "$db_user" -d "$db_name" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users';" 2>/dev/null | tr -d '[:space:]')
+
+  [[ "$users_count" == "1" ]]
+}
+
+initialize_zabbix_schema() {
+  local db_name="$1"
+  local db_user="$2"
+
+  echo "🗄️ Initializing Zabbix database schema..."
+  sudo docker run --rm zabbix/zabbix-server-pgsql:ubuntu-7.0-latest \
+    sh -c 'zcat /usr/share/doc/zabbix-server-postgresql/create.sql.gz' \
+    | sudo docker exec -i zabbix-db psql -U "$db_user" -d "$db_name" >/dev/null
+}
+
+ZABBIX_DB_NAME_VALUE="$(get_env_value ZABBIX_DB_NAME zabbix)"
+ZABBIX_DB_USER_VALUE="$(get_env_value ZABBIX_DB_USER zabbix)"
+GRAFANA_PORT_VALUE="$(get_env_value GRAFANA_PORT 3000)"
+PROMETHEUS_PORT_VALUE="$(get_env_value PROMETHEUS_PORT 9090)"
+ZABBIX_WEB_PORT_VALUE="$(get_env_value ZABBIX_WEB_PORT 8080)"
+LOKI_PORT_VALUE="$(get_env_value LOKI_PORT 3100)"
+
 # ===============================
 # 3. Project directory
 # ===============================
@@ -146,7 +206,15 @@ sudo chmod -R 700 zabbix_server_data
 # 6. Launch stack
 # ===============================
 echo "📦 Starting containers..."
-$DOCKER_COMPOSE up -d
+$DOCKER_COMPOSE up -d node-exporter-instancia1 prometheus-instancia1 grafana-instancia1 loki promtail zabbix-db
+
+wait_for_postgres "$ZABBIX_DB_NAME_VALUE" "$ZABBIX_DB_USER_VALUE"
+
+if ! zabbix_schema_is_ready "$ZABBIX_DB_NAME_VALUE" "$ZABBIX_DB_USER_VALUE"; then
+  initialize_zabbix_schema "$ZABBIX_DB_NAME_VALUE" "$ZABBIX_DB_USER_VALUE"
+fi
+
+$DOCKER_COMPOSE up -d zabbix-server zabbix-agent zabbix-web
 
 # ===============================
 # 7. Create systemd service
@@ -174,10 +242,10 @@ echo "-------------------------------------"
 echo "✅ Deploy completed successfully!"
 echo ""
 echo "📊 Access points:"
-echo "   Grafana:       http://localhost:${GRAFANA_PORT:-3000}"
-echo "   Prometheus:    http://localhost:${PROMETHEUS_PORT:-9090}"
-echo "   Zabbix Web:    http://localhost:${ZABBIX_WEB_PORT:-8080}"
-echo "   Loki (API):    http://localhost:${LOKI_PORT:-3100}"
+echo "   Grafana:       http://localhost:${GRAFANA_PORT_VALUE}"
+echo "   Prometheus:    http://localhost:${PROMETHEUS_PORT_VALUE}"
+echo "   Zabbix Web:    http://localhost:${ZABBIX_WEB_PORT_VALUE}"
+echo "   Loki (API):    http://localhost:${LOKI_PORT_VALUE}"
 echo ""
 echo "🔑 Zabbix default login: Admin / zabbix"
 echo "   (change immediately after first login)"
