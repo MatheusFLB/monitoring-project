@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
-# deploy.sh — Script de deploy automatizado do Monitoring Stack
+# deploy.sh — Script de deploy automatizado do Monitoring + SIEM Stack
 # =============================================================================
-# Este script configura e inicia toda a stack de monitoramento:
+# Este script configura e inicia toda a stack de monitoramento e SIEM:
 #   1. Verifica dependências (Docker, Docker Compose)
 #   2. Avalia recursos do host (RAM)
 #   3. Cria o arquivo .env com senhas e portas
 #   4. Cria diretórios persistentes com permissões corretas
-#   5. Inicia os containers em sequência
-#   6. Inicializa o banco do Zabbix (se necessário)
-#   7. Configura serviço systemd para boot automático
+#   5. Gera certificados TLS e configura senhas do ELK
+#   6. Inicia os containers em sequência
+#   7. Inicializa o banco do Zabbix (se necessário)
+#   8. Configura serviço systemd para boot automático
 #
 # Uso:
 #   chmod +x deploy.sh
@@ -18,9 +19,9 @@
 # Pré-requisitos:
 #   - Docker e Docker Compose instalados
 #   - Acesso root (sudo)
-#   - 6 GB RAM mínimo (8 GB+ recomendado)
+#   - 8 GB RAM mínimo (12 GB+ recomendado com ELK)
 # =============================================================================
-set -e  # Interrompe execução em caso de erro
+set -e
 
 # --- Constantes do projeto ---
 SERVICE_NAME="monitoring-app.service"
@@ -57,9 +58,9 @@ fi
 # A stack completa consome ~3-4 GB de RAM em idle. Alerta se o host tem < 4 GB.
 
 TOTAL_RAM_MB=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)
-if [[ "$TOTAL_RAM_MB" -lt 4096 ]]; then
+if [[ "$TOTAL_RAM_MB" -lt 6144 ]]; then
   echo "⚠️  Warning: this host has only ${TOTAL_RAM_MB} MB RAM."
-  echo "   The full stack works best with ≥ 6 GB. Expect higher swap usage."
+  echo "   The full stack (monitoring + ELK) works best with ≥ 8 GB. Expect higher swap usage."
 fi
 
 # =============================================================================
@@ -98,10 +99,15 @@ if [[ ! -f "$ENV_FILE" ]]; then
   read -p "Zabbix agent hostname for this host (e.g., monitoring-host): " ZABBIX_AGENT_HOSTNAME
   read -p "Timezone (e.g., America/Sao_Paulo): " TZ
 
-  # --- Loki ---
+  # --- ELK ---
   echo "-------------------------------------"
-  echo "📝 Loki configuration"
-  read -p "Loki port (e.g., 3100): " LOKI_PORT
+  echo "📝 ELK (Elasticsearch + Logstash + Kibana) configuration"
+  read -s -p "Elastic user password (for 'elastic' superuser): " ELASTIC_PASSWORD
+  echo
+  read -s -p "Kibana system password (for 'kibana_system' user): " KIBANA_SYSTEM_PASSWORD
+  echo
+  read -p "ELK version (e.g., 8.17.0): " ELK_VERSION
+  ELK_VERSION=${ELK_VERSION:-8.17.0}
 
   # Gera o arquivo .env com todos os valores coletados
   cat <<EOF > "$ENV_FILE"
@@ -123,8 +129,10 @@ ZBX_STARTPOLLERS=3
 ZBX_STARTPINGERS=2
 TZ=${TZ:-America/Sao_Paulo}
 
-# ── Loki ──
-LOKI_PORT=$LOKI_PORT
+# ── ELK (Elasticsearch + Logstash + Kibana) ──
+ELASTIC_PASSWORD=$ELASTIC_PASSWORD
+KIBANA_SYSTEM_PASSWORD=$KIBANA_SYSTEM_PASSWORD
+ELK_VERSION=$ELK_VERSION
 EOF
 
   # Protege o arquivo .env (contém senhas)
@@ -202,7 +210,8 @@ ZABBIX_DB_USER_VALUE="$(get_env_value ZABBIX_DB_USER zabbix)"
 GRAFANA_PORT_VALUE="$(get_env_value GRAFANA_PORT 3000)"
 PROMETHEUS_PORT_VALUE="$(get_env_value PROMETHEUS_PORT 9090)"
 ZABBIX_WEB_PORT_VALUE="$(get_env_value ZABBIX_WEB_PORT 8080)"
-LOKI_PORT_VALUE="$(get_env_value LOKI_PORT 3100)"
+ELASTIC_PASSWORD_VALUE="$(get_env_value ELASTIC_PASSWORD changeme)"
+KIBANA_SYSTEM_PASSWORD_VALUE="$(get_env_value KIBANA_SYSTEM_PASSWORD changeme)"
 
 # =============================================================================
 # 3. Diretório do projeto
@@ -222,9 +231,9 @@ echo "📂 Ensuring persistent directories exist..."
 mkdir -p \
   data/grafana \
   data/prometheus \
-  data/loki \
   data/zabbix-db \
-  data/zabbix-server
+  data/zabbix-server \
+  config/logstash/pipeline
 
 # =============================================================================
 # 5. Ajuste de permissões dos volumes
@@ -242,10 +251,6 @@ sudo chmod -R 700 data/grafana
 sudo chown -R 65534:65534 data/prometheus
 sudo chmod -R 700 data/prometheus
 
-# Loki roda como UID 10001 (loki default)
-sudo chown -R 10001:10001 data/loki
-sudo chmod -R 700 data/loki
-
 # PostgreSQL no Alpine roda como UID 70
 sudo chown -R 70:70 data/zabbix-db
 sudo chmod -R 700 data/zabbix-db
@@ -261,17 +266,44 @@ sudo chmod -R 755 config/grafana
 # =============================================================================
 # 6. Inicialização dos containers
 # =============================================================================
-# Inicia em duas fases:
-#   Fase 1: Serviços base (exporters, Prometheus, Grafana, Loki, DB)
-#   Fase 2: Serviços Zabbix (após DB estar pronto e schema criado)
+# Inicia em três fases:
+#   Fase 1: ELK setup (gera certificados TLS)
+#   Fase 2: Serviços base (exporters, Prometheus, Grafana, ELK, DB)
+#   Fase 3: Serviços Zabbix (após DB estar pronto e schema criado)
 
-echo "📦 Starting containers (phase 1: base services)..."
+echo "📦 Starting containers (phase 1: ELK setup — generating TLS certs)..."
+$DOCKER_COMPOSE up -d elk-setup
+echo "⏳ Waiting for TLS certificates to be generated..."
+until sudo docker inspect --format='{{.State.Health.Status}}' elk-setup 2>/dev/null | grep -q healthy; do
+  sleep 2
+done
+echo "✅ TLS certificates ready"
+
+echo "📦 Starting containers (phase 2: base services + ELK)..."
 $DOCKER_COMPOSE up -d \
   node-exporter-instancia1 \
   prometheus-instancia1 \
   grafana-instancia1 \
-  loki promtail \
+  elasticsearch \
   zabbix-db
+
+# Aguarda Elasticsearch ficar healthy antes de iniciar Logstash e Kibana
+echo "⏳ Waiting for Elasticsearch to become healthy..."
+until sudo docker inspect --format='{{.State.Health.Status}}' elasticsearch 2>/dev/null | grep -q healthy; do
+  sleep 5
+done
+echo "✅ Elasticsearch is healthy"
+
+# Configura a senha do usuário kibana_system via API
+echo "🔐 Setting kibana_system password..."
+sudo docker exec elasticsearch curl -s -X POST \
+  --cacert config/certs/ca/ca.crt \
+  -u "elastic:${ELASTIC_PASSWORD_VALUE}" \
+  -H "Content-Type: application/json" \
+  "https://localhost:9200/_security/user/kibana_system/_password" \
+  -d "{\"password\":\"${KIBANA_SYSTEM_PASSWORD_VALUE}\"}" >/dev/null 2>&1 || true
+
+$DOCKER_COMPOSE up -d logstash kibana
 
 # Aguarda PostgreSQL aceitar conexões antes de iniciar Zabbix Server
 wait_for_postgres "$ZABBIX_DB_NAME_VALUE" "$ZABBIX_DB_USER_VALUE"
@@ -316,7 +348,11 @@ echo "📊 Access points:"
 echo "   Grafana:       http://localhost:${GRAFANA_PORT_VALUE}"
 echo "   Prometheus:    http://localhost:${PROMETHEUS_PORT_VALUE}"
 echo "   Zabbix Web:    http://localhost:${ZABBIX_WEB_PORT_VALUE}"
-echo "   Loki (API):    http://localhost:${LOKI_PORT_VALUE}"
+echo "   Kibana:        http://localhost:5601"
+echo "   Elasticsearch: https://localhost:9200 (TLS, user: elastic)"
 echo ""
 echo "🔑 Zabbix default login: Admin / zabbix"
 echo "   (change immediately after first login)"
+echo ""
+echo "🔑 Kibana login: elastic / (password set during deploy)"
+echo "   Logstash inputs: Beats on 5044, Syslog on 514 (TCP/UDP)"

@@ -1,20 +1,16 @@
 # =============================================================================
 # Promtail — Coleta e classificação de logs
 # =============================================================================
-# O Promtail lê logs de arquivos locais e containers Docker, classifica cada
+# O Promtail lê logs do systemd-journal e containers Docker, classifica cada
 # linha por severidade (INFO/WARNING/ERROR) e envia para o Loki.
 #
 # Jobs configurados:
-#   1. system   — /var/log/syslog (eventos do sistema operacional)
-#   2. auth     — /var/log/auth.log (autenticação, sudo, SSH)
-#   3. kernel   — /var/log/kern.log (mensagens do kernel)
-#   4. docker   — containers via Docker socket (service discovery)
-#   5. security — /var/log/auth.log (visão focada em eventos de segurança)
+#   1. journal  — systemd-journal (sistema, auth, kernel via journald)
+#   2. docker   — containers via Docker socket (service discovery)
 #
-# NOTA: Os jobs "auth" e "security" leem o mesmo arquivo (/var/log/auth.log)
-# com pipelines diferentes. O job "auth" classifica ações gerais, enquanto
-# "security" foca em detecção de eventos de segurança. Isso resulta em
-# ingestão duplicada do auth.log — aceito para manter dashboards separados.
+# Este host Debian 12 usa journald (sem rsyslog). Os logs de sistema,
+# autenticação e kernel são todos lidos via journal scrape config.
+# O campo SYSLOG_IDENTIFIER do journal é usado para classificar a origem.
 #
 # Documentação: https://grafana.com/docs/loki/latest/send-data/promtail/
 # =============================================================================
@@ -23,7 +19,7 @@ server:
   http_listen_port: 9080   # API interna do Promtail (métricas, health)
   grpc_listen_port: 0      # Desabilitado (não usado em modo push)
 
-# Arquivo de posições — registra até onde cada arquivo de log foi lido.
+# Arquivo de posições — registra até onde cada fonte de log foi lida.
 # Garante que o Promtail retome de onde parou após reinícios.
 positions:
   filename: /tmp/positions.yaml
@@ -35,96 +31,95 @@ clients:
 scrape_configs:
 
   # ===========================================================================
-  # Job: system — Logs do sistema operacional (syslog)
+  # Job: journal — Logs do systemd-journal (sistema, auth, kernel)
   # ===========================================================================
-  # Coleta eventos gerais do sistema: serviços, cron, boot, etc.
-  # Classificação por severidade baseada em palavras-chave no texto do log.
-  - job_name: system
-    static_configs:
-      - targets: [localhost]
-        labels:
-          job: system
-          host: monitoring-host
-          __path__: /var/log/syslog
+  # Lê diretamente do journald — cobre syslog, autenticação, kernel e todos
+  # os serviços gerenciados pelo systemd. Elimina a necessidade de múltiplos
+  # jobs lendo arquivos separados (que não existem sem rsyslog).
+  #
+  # Labels extraídas do journal:
+  #   - __journal__systemd_unit → unit (ex: ssh.service, cron.service)
+  #   - __journal_syslog_identifier → syslog_identifier (ex: sudo, sshd, kernel)
+  #   - __journal_priority → usado no pipeline para classificar severidade
+  - job_name: journal
+    journal:
+      path: /var/log/journal       # Diretório persistente do journald
+      max_age: 12h                 # Só ingere entradas das últimas 12h no startup
+      labels:
+        job: system                # Label base — pipeline reclassifica para auth/kernel
+        host: monitoring-host
+    relabel_configs:
+      # Extrai a unidade systemd como label (ex: ssh.service)
+      - source_labels: ['__journal__systemd_unit']
+        target_label: unit
+      # Extrai o identificador syslog (ex: sshd, sudo, kernel, CRON)
+      - source_labels: ['__journal_syslog_identifier']
+        target_label: syslog_identifier
     pipeline_stages:
-      # Nível padrão: INFO (será sobrescrito se detectar padrões abaixo)
+      # -----------------------------------------------------------------
+      # Classificação de job baseada no identificador syslog
+      # -----------------------------------------------------------------
+      # Reclassifica o job base "system" para categorias específicas,
+      # permitindo filtrar por job="auth", job="kernel" nos dashboards.
+
+      # Kernel: mensagens do kernel Linux (OOM, hardware, drivers)
+      - match:
+          selector: '{job="system"}'
+          stages:
+            - regex:
+                source: syslog_identifier
+                expression: '^(?P<is_kernel>kernel)$'
+            - template:
+                source: new_job
+                template: '{{ if .is_kernel }}kernel{{ end }}'
+            - labels:
+                job: new_job
+
+      # Auth: eventos de autenticação (ssh, sudo, login, pam)
+      - match:
+          selector: '{job="system"}'
+          stages:
+            - regex:
+                source: syslog_identifier
+                expression: '^(?P<is_auth>sshd|sudo|login|su|systemd-logind|pam_unix)$'
+            - template:
+                source: new_job
+                template: '{{ if .is_auth }}auth{{ end }}'
+            - labels:
+                job: new_job
+
+      # -----------------------------------------------------------------
+      # Classificação de severidade por palavras-chave
+      # -----------------------------------------------------------------
+      # Nível padrão: INFO
       - static_labels:
           level: INFO
-      # Detecta warnings: degraded, retry, timeout, etc.
+
+      # WARNING: degraded, retry, timeout, etc.
       - match:
-          selector: '{job="system"} |~ "(?i)(warn|warning|degraded|retry|timeout)"'
+          selector: '{job=~".+"} |~ "(?i)(warn|warning|degraded|retry|timeout)"'
           stages:
             - static_labels:
                 level: WARNING
-      # Detecta erros: critical, panic, fatal, failed, etc.
+
+      # ERROR: critical, panic, fatal, failed, OOM, segfault
       - match:
-          selector: '{job="system"} |~ "(?i)(error|critical|panic|fatal|failed|failure)"'
+          selector: '{job=~".+"} |~ "(?i)(error|critical|panic|fatal|failed|failure|oom|segfault)"'
           stages:
             - static_labels:
                 level: ERROR
 
-  # ===========================================================================
-  # Job: auth — Logs de autenticação e acesso
-  # ===========================================================================
-  # Coleta eventos de login, sudo, SSH e sessões.
-  # Extrai a ação específica como label para filtragem granular.
-  - job_name: auth
-    static_configs:
-      - targets: [localhost]
-        labels:
-          job: auth
-          host: monitoring-host
-          __path__: /var/log/auth.log
-    pipeline_stages:
-      # Extrai o tipo de ação do log (Failed password, sudo, session, etc.)
-      - regex:
-          expression: '.*(?P<action>Failed password|Accepted password|session opened|session closed|sudo:|COMMAND=|Invalid user|authentication failure).*'
-      # Adiciona a ação extraída como label "action" no Loki
-      - labels:
-          action:
-      # Nível padrão: INFO
-      - static_labels:
-          level: INFO
-      # Escalona para WARNING: comandos sudo, conexões fechadas
+      # -----------------------------------------------------------------
+      # Extração de ações de autenticação
+      # -----------------------------------------------------------------
+      # Extrai ações específicas como label para filtragem nos dashboards.
       - match:
-          selector: '{job="auth"} |~ "(?i)(sudo:|COMMAND=|Connection closed by authenticating user)"'
+          selector: '{job="auth"}'
           stages:
-            - static_labels:
-                level: WARNING
-      # Escalona para ERROR: falhas de autenticação
-      - match:
-          selector: '{job="auth"} |~ "(?i)(Failed password|Invalid user|authentication failure|error|failed)"'
-          stages:
-            - static_labels:
-                level: ERROR
-
-  # ===========================================================================
-  # Job: kernel — Mensagens do kernel Linux
-  # ===========================================================================
-  # Coleta eventos do kernel: hardware, drivers, OOM, segfaults, etc.
-  - job_name: kernel
-    static_configs:
-      - targets: [localhost]
-        labels:
-          job: kernel
-          host: monitoring-host
-          __path__: /var/log/kern.log
-    pipeline_stages:
-      # Nível padrão: INFO
-      - static_labels:
-          level: INFO
-      # Detecta warnings: taint, throttling, degraded
-      - match:
-          selector: '{job="kernel"} |~ "(?i)(warn|warning|taint|throttl|degraded)"'
-          stages:
-            - static_labels:
-                level: WARNING
-      # Detecta erros: OOM killer, segfaults, panics
-      - match:
-          selector: '{job="kernel"} |~ "(?i)(error|critical|panic|fatal|oom|segfault|fail)"'
-          stages:
-            - static_labels:
-                level: ERROR
+            - regex:
+                expression: '.*(?P<action>Failed password|Accepted password|session opened|session closed|sudo:|COMMAND=|Invalid user|Connection closed by authenticating user|authentication failure).*'
+            - labels:
+                action:
 
   # ===========================================================================
   # Job: docker — Logs de containers Docker
@@ -148,6 +143,9 @@ scrape_configs:
       # Adiciona label de host para consistência com outros jobs
       - target_label: host
         replacement: monitoring-host
+      # Define job="docker" explicitamente (docker_sd_configs não herda job_name)
+      - target_label: job
+        replacement: docker
     pipeline_stages:
       # Nível padrão: INFO
       - static_labels:
@@ -158,54 +156,17 @@ scrape_configs:
           stages:
             - static_labels:
                 level: WARNING
-      # stderr não é necessariamente ERROR — muitos apps escrevem output
-      # normal em stderr. Classificamos como ERROR mas isso pode gerar
-      # falsos positivos.
+      # stderr não é necessariamente ERROR — muitos apps (Java, Python, Go)
+      # escrevem output normal em stderr. Classificamos stderr como WARNING
+      # para visibilidade sem poluir contagem de ERRORs reais.
       - match:
           selector: '{job="docker",stream="stderr"}'
           stages:
             - static_labels:
-                level: ERROR
-      # Detecta erros explícitos em qualquer stream
+                level: WARNING
+      # Detecta erros explícitos em qualquer stream (sobrescreve WARNING acima)
       - match:
           selector: '{job="docker"} |~ "(?i)(error|critical|panic|fatal|failed|exception|traceback)"'
-          stages:
-            - static_labels:
-                level: ERROR
-
-  # ===========================================================================
-  # Job: security — Detecção de eventos de segurança
-  # ===========================================================================
-  # Lê o mesmo auth.log que o job "auth", mas com pipeline focada em
-  # categorizar eventos de segurança para o dashboard de monitoramento.
-  #
-  # NOTA: Gera ingestão duplicada do auth.log. Mantido separado para
-  # permitir queries independentes (job="security") nos dashboards.
-  - job_name: security
-    static_configs:
-      - targets: [localhost]
-        labels:
-          job: security
-          host: monitoring-host
-          __path__: /var/log/auth.log
-    pipeline_stages:
-      # Extrai ações de segurança relevantes
-      - regex:
-          expression: '.*(?P<action>Failed password|Accepted password|session opened|session closed|sudo:|COMMAND=|Invalid user|Connection closed by authenticating user|authentication failure).*'
-      - labels:
-          action:
-      # Nível padrão: INFO
-      - static_labels:
-          level: INFO
-      # Escalona para WARNING: atividade de sudo e conexões suspeitas
-      - match:
-          selector: '{job="security"} |~ "(?i)(sudo:|COMMAND=|Connection closed by authenticating user)"'
-          stages:
-            - static_labels:
-                level: WARNING
-      # Escalona para ERROR: falhas de autenticação (possíveis ataques)
-      - match:
-          selector: '{job="security"} |~ "(?i)(Failed password|Invalid user|authentication failure)"'
           stages:
             - static_labels:
                 level: ERROR

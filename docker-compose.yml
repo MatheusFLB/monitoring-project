@@ -1,25 +1,32 @@
 # =============================================================================
-# Docker Compose — Monitoring Stack
+# Docker Compose — Monitoring + SIEM Stack
 # =============================================================================
-# Orquestra todos os serviços de monitoramento em uma única rede Docker.
+# Orquestra todos os serviços de monitoramento e SIEM em Docker.
 #
-# Serviços (9 containers):
-#   1. node-exporter  — Métricas de hardware/SO do host
-#   2. prometheus      — Banco de dados de métricas (time-series)
-#   3. grafana         — Dashboards e visualização unificada
-#   4. zabbix-db       — PostgreSQL para o Zabbix
-#   5. zabbix-server   — Motor de monitoramento de rede
-#   6. zabbix-web      — Interface web do Zabbix
-#   7. zabbix-agent    — Agente local + monitoramento Docker
-#   8. loki            — Agregador de logs
-#   9. promtail        — Coletor de logs
+# Serviços (12 containers):
+#   1.  node-exporter   — Métricas de hardware/SO do host
+#   2.  prometheus       — Banco de dados de métricas (time-series)
+#   3.  grafana          — Dashboards e visualização unificada
+#   4.  zabbix-db        — PostgreSQL para o Zabbix
+#   5.  zabbix-server    — Motor de monitoramento de rede
+#   6.  zabbix-web       — Interface web do Zabbix
+#   7.  zabbix-agent     — Agente local + monitoramento Docker
+#   8.  elk-setup        — Container one-shot: gera certificados TLS e senhas
+#   9.  elasticsearch    — Motor de busca e SIEM (single-node lab)
+#   10. logstash         — Pipeline de ingestão de logs
+#   11. kibana           — Interface de análise e SIEM
+#
+# Redes:
+#   - monitoring  → Prometheus, Grafana, Zabbix, Node Exporter
+#   - elk         → Elasticsearch, Logstash, Kibana
+#   (Grafana conecta nas duas para acessar Elasticsearch como datasource)
 #
 # Uso:
 #   docker-compose up -d            # Subir todos os serviços
-#   docker-compose logs -f grafana  # Ver logs de um serviço
+#   docker-compose logs -f kibana   # Ver logs de um serviço
 #   docker-compose down             # Parar tudo
 #
-# Variáveis de ambiente: definidas no arquivo .env (ver .env.example)
+# Variáveis de ambiente: definidas no arquivo .env (ver deploy.sh)
 # =============================================================================
 
 services:
@@ -31,26 +38,23 @@ services:
   # ---------------------------------------------------------------------------
   # Node Exporter — Exportador de métricas do host
   # ---------------------------------------------------------------------------
-  # Expõe métricas do sistema operacional (CPU, memória, disco, rede) no
-  # formato Prometheus. O Prometheus faz scrape dessas métricas a cada 15s.
   node-exporter-instancia1:
     image: prom/node-exporter:latest
     container_name: node-exporter-instancia1
     volumes:
-      - /:/host:ro              # Monta o filesystem do host (somente leitura)
+      - /:/host:ro
     command:
-      - '--path.rootfs=/host'   # Aponta para o root filesystem montado
+      - '--path.rootfs=/host'
     ports:
       - "${NODE_EXPORTER_PORT}:9100"
     networks:
-      - monitoring-network
+      - monitoring
+    mem_limit: 128m
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Prometheus — Banco de dados de métricas (time-series)
   # ---------------------------------------------------------------------------
-  # Coleta métricas dos exporters configurados e armazena com retenção de 30 dias.
-  # Interface web disponível na porta configurada (padrão: 9090).
   prometheus-instancia1:
     image: prom/prometheus:latest
     container_name: prometheus-instancia1
@@ -59,47 +63,42 @@ services:
     ports:
       - "${PROMETHEUS_PORT}:9090"
     volumes:
-      - ./config/prometheus:/etc/prometheus        # Configuração de scrape
-      - ./data/prometheus:/prometheus               # Dados persistentes (TSDB)
+      - ./config/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'        # Retenção de 30 dias
+      - '--storage.tsdb.retention.time=30d'
     networks:
-      - monitoring-network
+      - monitoring
+    mem_limit: 512m
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Grafana — Plataforma de visualização e dashboards
   # ---------------------------------------------------------------------------
-  # Interface unificada para métricas (Prometheus), logs (Loki) e rede (Zabbix).
-  # Dashboards e datasources são provisionados automaticamente via arquivos YAML.
-  #
-  # O plugin Zabbix é instalado pelo entrypoint Docker (GF_INSTALL_PLUGINS)
-  # antes do Grafana iniciar, garantindo que o datasource type esteja disponível
-  # para o provisioning.
+  # Interface unificada para métricas (Prometheus) e rede (Zabbix).
+  # Também pode consultar Elasticsearch para logs, se configurado.
   grafana-instancia1:
     image: grafana/grafana:latest
     container_name: grafana-instancia1
     depends_on:
       - prometheus-instancia1
-      - loki
     ports:
       - "${GRAFANA_PORT}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      # Instala o plugin Zabbix via entrypoint Docker (antes do Grafana iniciar).
-      # O datasource Zabbix deve ser configurado via UI/API após o startup
-      # devido a race condition no provisioning YAML do Grafana 13+.
       - GF_INSTALL_PLUGINS=alexanderzobnin-zabbix-app
     volumes:
-      - ./config/grafana/provisioning:/etc/grafana/provisioning  # Provisioning
-      - ./data/grafana:/var/lib/grafana                          # Dados persistentes
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
     networks:
-      - monitoring-network
+      - monitoring
+      - elk            # Permite que o Grafana consulte Elasticsearch
+    mem_limit: 512m
     restart: unless-stopped
 
   # ===========================================================================
@@ -109,8 +108,6 @@ services:
   # ---------------------------------------------------------------------------
   # Zabbix DB — PostgreSQL para o Zabbix Server
   # ---------------------------------------------------------------------------
-  # Armazena configurações, histórico de métricas e inventário de hosts.
-  # Senha gerada automaticamente pelo deploy.sh.
   zabbix-db:
     image: postgres:16-alpine
     container_name: zabbix-db
@@ -119,42 +116,46 @@ services:
       POSTGRES_USER: ${ZABBIX_DB_USER:-zabbix}
       POSTGRES_PASSWORD: ${ZABBIX_DB_PASSWORD}
     volumes:
-      - ./data/zabbix-db:/var/lib/postgresql/data    # Dados do PostgreSQL
+      - zabbix-db-data:/var/lib/postgresql/data
     networks:
-      - monitoring-network
+      - monitoring
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ZABBIX_DB_USER:-zabbix} -d ${ZABBIX_DB_NAME:-zabbix}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Zabbix Server — Motor de monitoramento
   # ---------------------------------------------------------------------------
-  # Gerencia coleta de dados de hosts monitorados (com ou sem agente).
-  # Porta 10051: comunicação com Zabbix Agents remotos.
   zabbix-server:
     image: zabbix/zabbix-server-pgsql:ubuntu-7.0-latest
     container_name: zabbix-server
     depends_on:
-      - zabbix-db
+      zabbix-db:
+        condition: service_healthy
     environment:
       DB_SERVER_HOST: zabbix-db
       POSTGRES_DB: ${ZABBIX_DB_NAME:-zabbix}
       POSTGRES_USER: ${ZABBIX_DB_USER:-zabbix}
       POSTGRES_PASSWORD: ${ZABBIX_DB_PASSWORD}
-      ZBX_CACHESIZE: ${ZBX_CACHESIZE:-32M}          # Cache de configuração
-      ZBX_STARTPOLLERS: ${ZBX_STARTPOLLERS:-3}       # Threads de polling
-      ZBX_STARTPINGERS: ${ZBX_STARTPINGERS:-2}       # Threads de ICMP ping
+      ZBX_CACHESIZE: ${ZBX_CACHESIZE:-32M}
+      ZBX_STARTPOLLERS: ${ZBX_STARTPOLLERS:-3}
+      ZBX_STARTPINGERS: ${ZBX_STARTPINGERS:-2}
     ports:
       - "${ZABBIX_SERVER_PORT:-10051}:10051"
     volumes:
-      - ./data/zabbix-server:/var/lib/zabbix         # Estado do servidor
+      - ./data/zabbix-server:/var/lib/zabbix
     networks:
-      - monitoring-network
+      - monitoring
+    mem_limit: 512m
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Zabbix Web — Interface de administração
   # ---------------------------------------------------------------------------
-  # Painel web para configurar hosts, templates, triggers e visualizar dados.
-  # Também serve como proxy da API JSON-RPC usada pelo plugin Grafana.
   zabbix-web:
     image: zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest
     container_name: zabbix-web
@@ -170,14 +171,13 @@ services:
     ports:
       - "${ZABBIX_WEB_PORT:-8080}:8080"
     networks:
-      - monitoring-network
+      - monitoring
+    mem_limit: 256m
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
   # Zabbix Agent 2 — Agente de monitoramento local
   # ---------------------------------------------------------------------------
-  # Coleta métricas detalhadas do host local e containers Docker.
-  # Comunicação ativa com o Zabbix Server (não precisa de porta exposta).
   zabbix-agent:
     image: zabbix/zabbix-agent2:ubuntu-7.0-latest
     container_name: zabbix-agent
@@ -187,59 +187,235 @@ services:
       ZBX_SERVER_HOST: zabbix-server
       ZBX_HOSTNAME: ${ZABBIX_AGENT_HOSTNAME:-monitoring-host}
     volumes:
-      - /:/host:ro                                   # Filesystem do host
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Métricas de containers
-    privileged: true           # Necessário para acesso completo a métricas do host
+      - /:/host:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    privileged: true
     networks:
-      - monitoring-network
+      - monitoring
+    mem_limit: 128m
     restart: unless-stopped
 
   # ===========================================================================
-  # BLOCO 3: Logs — Loki + Promtail
+  # BLOCO 3: SIEM — ELK (Elasticsearch + Logstash + Kibana)
   # ===========================================================================
+  # Substitui Loki + Promtail para centralização e análise de logs.
+  # O Elasticsearch 8.x traz segurança (TLS + autenticação) habilitada por padrão.
 
   # ---------------------------------------------------------------------------
-  # Loki — Agregador de logs
+  # ELK Setup — Container one-shot para inicialização de segurança
   # ---------------------------------------------------------------------------
-  # Recebe logs do Promtail, indexa por labels e disponibiliza para
-  # consulta via LogQL no Grafana. Retenção de 30 dias.
-  loki:
-    image: grafana/loki:3.0.0
-    container_name: loki
-    command: -config.file=/etc/loki/loki.yml
+  # Gera certificados TLS (CA + certs) e configura a senha do usuário elastic.
+  # Roda apenas uma vez; depois, os outros containers usam os certs gerados.
+  elk-setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION:-8.17.0}
+    container_name: elk-setup
     volumes:
-      - ./config/loki:/etc/loki          # Configuração do Loki
-      - ./data/loki:/loki                # Dados persistentes (chunks + índices)
-    ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - elk-certs:/usr/share/elasticsearch/config/certs
+    user: "0"
+    command: >
+      bash -c '
+        # Só gera se o CA ainda não existir
+        if [ ! -f config/certs/ca/ca.crt ]; then
+          echo ">>> Gerando CA e certificados TLS..."
+          bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip
+          unzip config/certs/ca.zip -d config/certs
+
+          # Gera certificados para elasticsearch, kibana e logstash
+          cat > config/certs/instances.yml <<INSTANCES
+      instances:
+        - name: elasticsearch
+          dns: [ elasticsearch, localhost ]
+          ip: [ 127.0.0.1 ]
+        - name: kibana
+          dns: [ kibana, localhost ]
+          ip: [ 127.0.0.1 ]
+        - name: logstash
+          dns: [ logstash, localhost ]
+          ip: [ 127.0.0.1 ]
+      INSTANCES
+
+          bin/elasticsearch-certutil cert --silent --pem \
+            --ca-cert config/certs/ca/ca.crt \
+            --ca-key config/certs/ca/ca.key \
+            --in config/certs/instances.yml \
+            -out config/certs/certs.zip
+          unzip config/certs/certs.zip -d config/certs
+        fi
+
+        # Ajusta permissões para que os containers possam ler
+        chown -R 1000:0 config/certs
+        find config/certs -type d -exec chmod 750 {} \;
+        find config/certs -type f -exec chmod 640 {} \;
+
+        echo ">>> Certificados prontos."
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "test -f config/certs/ca/ca.crt"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
-      - monitoring-network
-    restart: unless-stopped
+      - elk
 
   # ---------------------------------------------------------------------------
-  # Promtail — Coletor de logs
+  # Elasticsearch — Motor de busca, analytics e SIEM
   # ---------------------------------------------------------------------------
-  # Lê logs de arquivos do sistema e containers Docker, classifica por
-  # severidade e envia para o Loki. Detecta novos containers automaticamente.
-  promtail:
-    image: grafana/promtail:3.0.0
-    container_name: promtail
+  # Configurado como single-node para laboratório residencial.
+  #
+  # ┌─────────────────────────────────────────────────────────────────────┐
+  # │ ESCALAR PARA CLUSTER 3 NÓS (produção):                            │
+  # │                                                                     │
+  # │ 1. Remova discovery.type=single-node                               │
+  # │ 2. Adicione 2 containers (es02, es03) com as mesmas configurações  │
+  # │ 3. Configure cluster.initial_master_nodes: ["es01","es02","es03"]  │
+  # │ 4. Configure discovery.seed_hosts: ["es02","es03"]                 │
+  # │ 5. Cada nó precisa de seu próprio volume de dados                  │
+  # │ 6. Aumente mem_limit para 4g+ por nó e ES_JAVA_OPTS para -Xms2g   │
+  # └─────────────────────────────────────────────────────────────────────┘
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION:-8.17.0}
+    container_name: elasticsearch
     depends_on:
-      - loki
-    command: -config.file=/etc/promtail/promtail.yml
+      elk-setup:
+        condition: service_healthy
+    environment:
+      - node.name=es01
+      - cluster.name=monitoring-siem
+      # Single-node: sem eleição de master, ideal para lab com poucos recursos
+      - discovery.type=single-node
+      # Heap da JVM — metade da mem_limit (nunca mais que 50% da RAM do container)
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      # --- Segurança TLS ---
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-changeme}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/elasticsearch/elasticsearch.key
+      - xpack.security.http.ssl.certificate=certs/elasticsearch/elasticsearch.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/elasticsearch/elasticsearch.key
+      - xpack.security.transport.ssl.certificate=certs/elasticsearch/elasticsearch.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
     volumes:
-      - ./config/promtail:/etc/promtail                # Configuração
-      - /var/log:/var/log:ro                           # Logs do host (syslog, auth, kern)
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # Discovery de containers
+      - elk-certs:/usr/share/elasticsearch/config/certs:ro
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
     networks:
-      - monitoring-network
+      - elk
+    # 1.5 GB para o container (512m heap + overhead da JVM + SO)
+    mem_limit: 1536m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/certs/ca/ca.crt -u elastic:${ELASTIC_PASSWORD:-changeme} https://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Logstash — Pipeline de ingestão de logs
+  # ---------------------------------------------------------------------------
+  # Recebe logs via Beats (5044) e Syslog (514 TCP/UDP) e envia para
+  # Elasticsearch em índices diários (logs-YYYY.MM.dd).
+  #
+  # Para escalar: rode múltiplas instâncias atrás de um load balancer.
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELK_VERSION:-8.17.0}
+    container_name: logstash
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - elk-certs:/usr/share/logstash/config/certs:ro
+      - ./config/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      - "5044:5044"            # Beats input
+      - "514:5140/tcp"         # Syslog TCP (host 514 → container 5140, sem root)
+      - "514:5140/udp"         # Syslog UDP
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-changeme}
+      # Desabilita monitoramento interno do Logstash no ES para economizar recursos
+      - xpack.monitoring.enabled=false
+    networks:
+      - elk
+    mem_limit: 768m
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Kibana — Interface de análise e SIEM
+  # ---------------------------------------------------------------------------
+  # Dashboards, Discover, SIEM (Security), alertas e Observability.
+  # Acessa Elasticsearch via HTTPS com certificados gerados pelo elk-setup.
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELK_VERSION:-8.17.0}
+    container_name: kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOSTS=https://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD:-changeme}
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
+      - SERVER_NAME=kibana
+      # Loga em JSON para facilitar ingestão futura
+      - LOGGING_ROOT_LEVEL=warn
+    volumes:
+      - elk-certs:/usr/share/kibana/config/certs:ro
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    mem_limit: 1024m
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s http://localhost:5601/api/status | grep -q 'available'"
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
     restart: unless-stopped
 
 # =============================================================================
-# Rede — Todos os serviços na mesma rede bridge
+# Volumes nomeados — persistência de dados
 # =============================================================================
-# Permite comunicação entre containers usando nomes de serviço como hostname.
-# Exemplo: o Grafana acessa o Prometheus via http://prometheus-instancia1:9090
+# Usar volumes Docker nomeados em vez de bind mounts para:
+#   - Melhor performance em Linux (sem overhead de mapeamento de UID)
+#   - Gerenciamento via `docker volume ls / inspect / prune`
+#   - Backup com `docker run --rm -v vol:/data -v $(pwd):/bak alpine tar czf /bak/vol.tgz /data`
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  zabbix-db-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+  elk-certs:
+    driver: local
+
+# =============================================================================
+# Redes
+# =============================================================================
+# Duas redes isolam tráfego por domínio:
+#   - monitoring: métricas e Zabbix
+#   - elk: SIEM (Elasticsearch, Logstash, Kibana)
+# Grafana conecta nas duas redes para poder consultar ambos os backends.
 networks:
-  monitoring-network:
+  monitoring:
+    driver: bridge
+  elk:
     driver: bridge

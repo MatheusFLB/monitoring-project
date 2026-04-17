@@ -1,97 +1,22 @@
 # =============================================================================
 # Grafana — Provisioning de alertas
 # =============================================================================
-# Define regras de alerta que o Grafana avalia automaticamente.
+# Este arquivo anteriormente continha regras de alerta baseadas em Loki.
+# Com a migração para ELK, os alertas de logs agora devem ser configurados
+# diretamente no Kibana (Security → Rules → Detection Rules) para melhor
+# integração com o SIEM.
 #
-# Regra atual:
-#   - logs_error_spike: Dispara quando há mais de 10 logs ERROR em 5 minutos
-#     no host monitoring-host. Usa o datasource Loki.
+# Para criar alertas de logs no Kibana:
+#   1. Acesse Kibana → Security → Rules
+#   2. Crie regras de detecção baseadas nos índices logs-*
+#   3. Use KQL para filtrar: severity:"ERROR" AND source_host:"monitoring-host"
 #
-# Para adicionar novas regras:
-#   1. Adicione um bloco em rules[] seguindo o formato abaixo
-#   2. Use datasourceUid: loki para queries LogQL
-#   3. Use datasourceUid: __expr__ para condições de threshold
-#   4. Reinicie o Grafana para aplicar
-#
-# Documentação: https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/
+# Se preferir manter alertas no Grafana usando o datasource Elasticsearch:
+#   1. Crie uma regra manualmente via Grafana UI → Alerting → Alert Rules
+#   2. Use o datasource "Elasticsearch" com query sobre logs-*
+#   3. Configure threshold por contagem de documentos com severity=ERROR
 # =============================================================================
 
 apiVersion: 1
 
-groups:
-  - orgId: 1
-    name: logs-central-rules       # Nome do grupo de regras
-    folder: Logs                   # Pasta no Grafana Alerting
-    interval: 1m                   # Intervalo de avaliação das regras
-    rules:
-
-      # -----------------------------------------------------------------------
-      # Alerta: Pico de logs ERROR no host local
-      # -----------------------------------------------------------------------
-      # Consulta o Loki contando logs com level=ERROR nos últimos 5 minutos.
-      # Se o total ultrapassar 10, o alerta dispara após 2 minutos de persistência.
-      - uid: logs_error_spike
-        title: ERROR logs acima do limite local
-        condition: B               # Referência à condição de threshold (refId B)
-
-        data:
-          # Query A — conta logs ERROR nos últimos 5 minutos via Loki
-          - refId: A
-            datasourceUid: loki
-            relativeTimeRange:
-              from: 300            # 300 segundos = 5 minutos atrás
-              to: 0                # Até agora
-            model:
-              datasource:
-                type: loki
-                uid: loki
-              editorMode: code
-              expr: sum(count_over_time({host="monitoring-host",level="ERROR"}[5m]))
-              instant: true
-              intervalMs: 1000
-              maxDataPoints: 43200
-              queryType: instant
-              refId: A
-
-          # Query B — condição de threshold: dispara se A > 10
-          - refId: B
-            datasourceUid: __expr__
-            relativeTimeRange:
-              from: 0
-              to: 0
-            model:
-              conditions:
-                - evaluator:
-                    params: [10]   # Threshold: mais de 10 logs ERROR
-                    type: gt       # Greater than
-                  operator:
-                    type: and
-                  query:
-                    params: [A]    # Referência à query A
-                  reducer:
-                    params: []
-                    type: last     # Usa o último valor da série
-                  type: query
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: B
-              type: classic_conditions
-
-        dashboardUid: logs-central   # Vincula ao dashboard Central de Logs
-        panelId: 2                   # Vincula ao painel ERROR (15m)
-        noDataState: OK              # Sem dados = OK (não alerta)
-        execErrState: Alerting       # Erro na execução = Alerting (fail-safe)
-        for: 2m                      # Tempo mínimo em estado alerting antes de disparar
-
-        annotations:
-          summary: Pico de logs ERROR no host local
-          description: >-
-            O host monitoring-host gerou mais de 10 logs ERROR
-            na janela de 5 minutos.
-        labels:
-          severity: critical
-          source: loki
+groups: []

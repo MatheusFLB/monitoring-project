@@ -2,12 +2,9 @@
 # Grafana — Provisioning de datasources
 # =============================================================================
 # Define as fontes de dados que o Grafana configura automaticamente ao iniciar.
-# Cada datasource conecta o Grafana a um backend de dados diferente.
 #
 # UIDs estáveis permitem que dashboards provisionados referenciem datasources
 # sem depender de IDs numéricos que mudam entre instalações.
-#
-# Documentação: https://grafana.com/docs/grafana/latest/administration/provisioning/
 # =============================================================================
 
 apiVersion: 1
@@ -17,25 +14,34 @@ datasources:
   # ---------------------------------------------------------------------------
   # Prometheus — Métricas de infraestrutura
   # ---------------------------------------------------------------------------
-  # Conecta ao Prometheus para queries PromQL (CPU, memória, disco, rede).
-  # Marcado como default — novos painéis usam este datasource por padrão.
   - name: Prometheus-Instancia1
     uid: prometheus-instancia1
     type: prometheus
-    access: proxy               # Grafana faz proxy das requests (recomendado)
+    access: proxy
     url: http://prometheus-instancia1:9090
     isDefault: true
 
   # ---------------------------------------------------------------------------
-  # Loki — Logs centralizados
+  # Elasticsearch — Logs centralizados (SIEM)
   # ---------------------------------------------------------------------------
-  # Conecta ao Loki para queries LogQL (syslog, auth, kernel, docker).
-  # Usado pelos dashboards de logs e alertas de ERROR.
-  - name: Loki
-    uid: loki
-    type: loki
+  # Conecta ao Elasticsearch para consulta de logs ingeridos via Logstash.
+  # Usa índice diário logs-* e o campo @timestamp.
+  - name: Elasticsearch
+    uid: elasticsearch
+    type: elasticsearch
     access: proxy
-    url: http://loki:3100
+    url: https://elasticsearch:9200
+    jsonData:
+      index: "logs-*"
+      timeField: "@timestamp"
+      esVersion: "8.17.0"
+      logMessageField: "message"
+      logLevelField: "severity"
+      tlsSkipVerify: true        # Certs auto-assinados do lab
+    secureJsonData:
+      basicAuthPassword: ${ELASTIC_PASSWORD:-changeme}
+    basicAuth: true
+    basicAuthUser: elastic
 
   # ---------------------------------------------------------------------------
   # Zabbix — Monitoramento de rede e hosts remotos
@@ -43,7 +49,6 @@ datasources:
   # NOTA: O datasource Zabbix NÃO pode ser provisionado via YAML porque o
   # Grafana 13+ tem uma race condition: o módulo de provisioning de datasources
   # inicia antes do plugin-app registrar o tipo "alexanderzobnin-zabbix-datasource".
-  # Isso causa "Datasource provisioning error: data source not found" e crash.
   #
   # Configure manualmente via Grafana UI após o primeiro startup:
   #   1. Acesse Configuration > Data Sources > Add data source
@@ -51,6 +56,3 @@ datasources:
   #   3. URL: http://zabbix-web:8080/api_jsonrpc.php
   #   4. Username: Admin / Password: zabbix (credenciais padrão)
   #   5. UID sugerido: zabbix
-  #
-  # Alternativa: use a API REST do Grafana para criar automaticamente.
-  # Veja o README.md para instruções detalhadas.
