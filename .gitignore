@@ -1,25 +1,59 @@
 # =============================================================================
-# .gitignore — Monitoring Stack
+# .gitignore — Monitoring + SIEM Stack
 # =============================================================================
-# Exclui do Git: dados persistentes, arquivos de ambiente com senhas,
-# e outros arquivos gerados em runtime.
+# Exclui do Git: dados persistentes, arquivos com credenciais, logs,
+# certificados TLS gerados em runtime, e artefatos de IDE/OS.
 # =============================================================================
 
 # --- Dados persistentes dos serviços (gerados em runtime) ---
 data/
 
+# --- Arquivos de ambiente (contêm senhas e tokens) ---
+.env
+.env.*
+!.env.example
+
+# --- Certificados e chaves TLS (gerados pelo elk-setup) ---
+certs/
+*.pem
+*.key
+*.crt
+*.p12
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Docker ---
+docker-compose.override.yml
+*.bak
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Python (scripts auxiliares) ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- Node (caso use ferramentas JS) ---
+node_modules/
+
 # --- Diretórios legados (pré-reorganização) ---
-# Remover estas entradas após confirmar que a migração para data/ está completa.
 grafana_data/
 prometheus_data/
 loki_data/
 zabbix_db_data/
 zabbix_server_data/
 
-# --- Arquivos de ambiente (contêm senhas) ---
-.env
-.env.old
-.env.backup
-
-# --- Preserva o template de exemplo (IMPORTANTE: esta linha deve vir APÓS .env) ---
-!.env.example
+/dashboards/
