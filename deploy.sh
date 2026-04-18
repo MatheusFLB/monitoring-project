@@ -222,16 +222,24 @@ echo "📁 Project: $WORKING_DIR"
 echo "🐳 Docker Compose: $DOCKER_COMPOSE"
 
 # =============================================================================
-# 4. Criação de diretórios persistentes
+# 4. Configuração do kernel para Elasticsearch
 # =============================================================================
-# Cria a estrutura de diretórios para dados persistentes dos serviços.
-# Os dados sobrevivem a recriações de containers.
+# Elasticsearch requer vm.max_map_count >= 262144 para mmap de índices.
+# Sem isso, o ES falha ao iniciar com "max virtual memory areas too low".
+
+echo "🔧 Setting vm.max_map_count for Elasticsearch..."
+sudo sysctl -w vm.max_map_count=262144 >/dev/null 2>&1
+if ! grep -q "^vm.max_map_count" /etc/sysctl.conf 2>/dev/null; then
+  echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf >/dev/null
+fi
+
+# =============================================================================
+# 5. Criação de diretórios persistentes
+# =============================================================================
+# Cria diretórios para bind mounts (volumes gerenciados pelo Docker não precisam).
 
 echo "📂 Ensuring persistent directories exist..."
 mkdir -p \
-  data/grafana \
-  data/prometheus \
-  data/zabbix-db \
   data/zabbix-server \
   config/logstash/pipeline
 
@@ -243,19 +251,7 @@ mkdir -p \
 
 echo "🔐 Adjusting volume permissions..."
 
-# Grafana roda como UID 472 (grafana user)
-sudo chown -R 472:472 data/grafana
-sudo chmod -R 700 data/grafana
-
-# Prometheus roda como UID 65534 (nobody)
-sudo chown -R 65534:65534 data/prometheus
-sudo chmod -R 700 data/prometheus
-
-# PostgreSQL no Alpine roda como UID 70
-sudo chown -R 70:70 data/zabbix-db
-sudo chmod -R 700 data/zabbix-db
-
-# Zabbix Server roda como UID 1997
+# Zabbix Server roda como UID 1997 (único serviço com bind mount em data/)
 sudo chown -R 1997:1997 data/zabbix-server
 sudo chmod -R 700 data/zabbix-server
 
@@ -313,7 +309,7 @@ if ! zabbix_schema_is_ready "$ZABBIX_DB_NAME_VALUE" "$ZABBIX_DB_USER_VALUE"; the
   initialize_zabbix_schema "$ZABBIX_DB_NAME_VALUE" "$ZABBIX_DB_USER_VALUE"
 fi
 
-echo "📦 Starting containers (phase 2: Zabbix services)..."
+echo "📦 Starting containers (phase 3: Zabbix services)..."
 $DOCKER_COMPOSE up -d zabbix-server zabbix-agent zabbix-web
 
 # =============================================================================

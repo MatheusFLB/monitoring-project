@@ -1,0 +1,13 @@
+# =============================================================================
+# Grafana — Provisioning de plugins (auto-enable)
+# =============================================================================
+# Ativa automaticamente o plugin Zabbix App após instalação via
+# GF_INSTALL_PLUGINS no docker-compose.yml.
+# =============================================================================
+
+apiVersion: 1
+
+apps:
+  - type: alexanderzobnin-zabbix-app
+    org_id: 1
+    disabled: false

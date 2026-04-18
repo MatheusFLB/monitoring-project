@@ -9,6 +9,10 @@
 
 apiVersion: 1
 
+deleteDatasources:
+  - name: Elasticsearch
+    orgId: 1
+
 datasources:
 
   # ---------------------------------------------------------------------------
@@ -39,7 +43,7 @@ datasources:
       logLevelField: "severity"
       tlsSkipVerify: true        # Certs auto-assinados do lab
     secureJsonData:
-      basicAuthPassword: ${ELASTIC_PASSWORD:-changeme}
+      basicAuthPassword: $ELASTIC_PASSWORD
     basicAuth: true
     basicAuthUser: elastic
 

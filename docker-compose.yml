@@ -82,7 +82,7 @@ services:
   # Interface unificada para métricas (Prometheus) e rede (Zabbix).
   # Também pode consultar Elasticsearch para logs, se configurado.
   grafana-instancia1:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.4.3
     container_name: grafana-instancia1
     depends_on:
       - prometheus-instancia1
@@ -92,6 +92,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_INSTALL_PLUGINS=alexanderzobnin-zabbix-app
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
     volumes:
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana

@@ -56,4 +56,4 @@ loki_data/
 zabbix_db_data/
 zabbix_server_data/
 
-/dashboards/
+/grafana/provisioning/dashboards/*
